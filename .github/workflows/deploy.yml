@@ -1,0 +1,189 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: eu-west-1
+  PROJECT: energyos
+
+jobs:
+  # ── Lint & Test ─────────────────────────────────────────────────────────────
+  test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install ruff pytest httpx -r requirements.txt
+
+      - name: Lint
+        run: ruff check app/
+
+      - name: Tests
+        run: pytest tests/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql+asyncpg://energyos:energyos@localhost:5432/energyos
+          DATABASE_SYNC_URL: postgresql+psycopg2://energyos:energyos@localhost:5432/energyos
+          REDIS_URL: redis://localhost:6379/0
+
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg15
+        env:
+          POSTGRES_DB: energyos
+          POSTGRES_USER: energyos
+          POSTGRES_PASSWORD: energyos
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 5
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  # ── Build & Push Docker images ───────────────────────────────────────────────
+  build-and-push:
+    needs: [test-backend, test-frontend]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      backend_image: ${{ steps.meta-backend.outputs.tags }}
+      worker_image: ${{ steps.meta-worker.outputs.tags }}
+      frontend_image: ${{ steps.meta-frontend.outputs.tags }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push backend
+        id: meta-backend
+        uses: docker/build-push-action@v5
+        with:
+          context: backend
+          target: prod
+          push: true
+          tags: ${{ steps.ecr-login.outputs.registry }}/${{ env.PROJECT }}/backend:${{ github.sha }}
+
+      - name: Build & push worker (same image, different CMD)
+        id: meta-worker
+        uses: docker/build-push-action@v5
+        with:
+          context: backend
+          target: prod
+          push: true
+          tags: ${{ steps.ecr-login.outputs.registry }}/${{ env.PROJECT }}/worker:${{ github.sha }}
+
+      - name: Build & push frontend
+        id: meta-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: frontend
+          target: prod
+          push: true
+          tags: ${{ steps.ecr-login.outputs.registry }}/${{ env.PROJECT }}/frontend:${{ github.sha }}
+
+  # ── DB Migrations ────────────────────────────────────────────────────────────
+  migrate:
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run alembic migrations via ECS run-task
+        run: |
+          aws ecs run-task \
+            --cluster ${{ env.PROJECT }}-cluster \
+            --task-definition ${{ env.PROJECT }}-backend \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PRIVATE_SUBNET_IDS }}],securityGroups=[${{ secrets.ECS_SG_ID }}]}" \
+            --overrides '{"containerOverrides":[{"name":"backend","command":["alembic","upgrade","head"]}]}'
+
+  # ── Deploy to ECS ─────────────────────────────────────────────────────────────
+  deploy:
+    needs: migrate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy backend
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.PROJECT }}-cluster \
+            --service ${{ env.PROJECT }}-backend \
+            --force-new-deployment
+
+      - name: Deploy worker
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.PROJECT }}-cluster \
+            --service ${{ env.PROJECT }}-worker \
+            --force-new-deployment
+
+      - name: Deploy beat
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.PROJECT }}-cluster \
+            --service ${{ env.PROJECT }}-beat \
+            --force-new-deployment
+
+      - name: Deploy frontend
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.PROJECT }}-cluster \
+            --service ${{ env.PROJECT }}-frontend \
+            --force-new-deployment
+
+      - name: Wait for stable deployments
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.PROJECT }}-cluster \
+            --services ${{ env.PROJECT }}-backend ${{ env.PROJECT }}-frontend
