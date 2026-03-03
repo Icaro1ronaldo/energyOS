@@ -1,0 +1,43 @@
+# Secrets & environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat.pid
+
+# Node
+node_modules/
+frontend/dist/
+
+# Terraform
+infra/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform.lock.hcl
+infra/.terraform.lock.hcl
+
+# macOS / IDE
+.DS_Store
+*.swp
+*.swo
+
+# Test artifacts
+htmlcov/
+.coverage
+coverage.xml
