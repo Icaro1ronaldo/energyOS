@@ -12,16 +12,16 @@ interface Props { zone: string; }
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function computeMAE(
-  actuals: Array<{ timestamp: string; [k: string]: unknown }>,
-  forecasts: Array<{ timestamp: string; [k: string]: unknown }>,
+  actuals: { timestamp: string }[],
+  forecasts: { timestamp: string }[],
   field: string,
 ): string | null {
   if (!forecasts.length) return null;
-  const map = new Map(actuals.map((a) => [a.timestamp, Number(a[field])]));
+  const map = new Map(actuals.map((a) => [a.timestamp, Number((a as Record<string, unknown>)[field])]));
   let sum = 0, count = 0;
   for (const f of forecasts) {
     const actual = map.get(f.timestamp);
-    const fv = Number(f[field]);
+    const fv = Number((f as Record<string, unknown>)[field]);
     if (actual != null && !isNaN(actual) && !isNaN(fv)) { sum += Math.abs(actual - fv); count++; }
   }
   return count > 0 ? (sum / count).toFixed(2) : null;
