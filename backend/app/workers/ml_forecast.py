@@ -1,6 +1,5 @@
 import uuid
 import pandas as pd
-from datetime import datetime, timezone
 from .celery_app import app
 from ..core.config import settings
 from ..core.database import SyncSessionLocal
@@ -36,7 +35,7 @@ def _load_price_df(zone: str) -> pd.DataFrame:
     with SyncSessionLocal() as db:
         rows = (
             db.query(EnergyPrice)
-            .filter(EnergyPrice.bidding_zone == zone, EnergyPrice.is_forecast == False)
+            .filter(EnergyPrice.bidding_zone == zone, ~EnergyPrice.is_forecast)
             .order_by(EnergyPrice.timestamp)
             .all()
         )
@@ -50,7 +49,7 @@ def _load_load_df(zone: str) -> pd.DataFrame:
     with SyncSessionLocal() as db:
         rows = (
             db.query(EnergyLoad)
-            .filter(EnergyLoad.bidding_zone == zone, EnergyLoad.is_forecast == False)
+            .filter(EnergyLoad.bidding_zone == zone, ~EnergyLoad.is_forecast)
             .order_by(EnergyLoad.timestamp)
             .all()
         )
@@ -67,7 +66,7 @@ def _load_production_df(zone: str, prod_type: str) -> pd.DataFrame:
             .filter(
                 EnergyProduction.bidding_zone == zone,
                 EnergyProduction.production_type == prod_type,
-                EnergyProduction.is_forecast == False,
+                ~EnergyProduction.is_forecast,
             )
             .order_by(EnergyProduction.timestamp)
             .all()
@@ -83,7 +82,7 @@ def _load_production_df(zone: str, prod_type: str) -> pd.DataFrame:
 def _write_price_forecasts(zone: str, forecast_df: pd.DataFrame):
     with SyncSessionLocal() as db:
         db.query(EnergyPrice).filter(
-            EnergyPrice.bidding_zone == zone, EnergyPrice.is_forecast == True
+            EnergyPrice.bidding_zone == zone, EnergyPrice.is_forecast
         ).delete()
         for _, row in forecast_df.iterrows():
             db.merge(EnergyPrice(
@@ -98,7 +97,7 @@ def _write_price_forecasts(zone: str, forecast_df: pd.DataFrame):
 def _write_load_forecasts(zone: str, forecast_df: pd.DataFrame):
     with SyncSessionLocal() as db:
         db.query(EnergyLoad).filter(
-            EnergyLoad.bidding_zone == zone, EnergyLoad.is_forecast == True
+            EnergyLoad.bidding_zone == zone, EnergyLoad.is_forecast
         ).delete()
         for _, row in forecast_df.iterrows():
             db.merge(EnergyLoad(
@@ -115,7 +114,7 @@ def _write_production_forecasts(zone: str, prod_type: str, forecast_df: pd.DataF
         db.query(EnergyProduction).filter(
             EnergyProduction.bidding_zone == zone,
             EnergyProduction.production_type == prod_type,
-            EnergyProduction.is_forecast == True,
+            EnergyProduction.is_forecast,
         ).delete()
         for _, row in forecast_df.iterrows():
             db.merge(EnergyProduction(

@@ -15,7 +15,7 @@ def get_active_model_key(
                 MlModelRegistry.domain == domain,
                 MlModelRegistry.bidding_zone == bidding_zone,
                 MlModelRegistry.production_type == production_type,
-                MlModelRegistry.is_active == True,
+                MlModelRegistry.is_active,
             )
             .order_by(MlModelRegistry.trained_at.desc())
             .first()
@@ -35,7 +35,7 @@ def register_model(
         MlModelRegistry.domain == domain,
         MlModelRegistry.bidding_zone == bidding_zone,
         MlModelRegistry.production_type == production_type,
-        MlModelRegistry.is_active == True,
+        MlModelRegistry.is_active,
     ).update({"is_active": False})
 
     db.add(
