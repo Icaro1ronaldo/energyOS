@@ -25,7 +25,7 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - run: pip install ruff pytest httpx -r requirements.txt
+      - run: pip install ruff -r requirements.txt
 
       - name: Lint
         run: ruff check app/
