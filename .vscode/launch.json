@@ -1,0 +1,103 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    // ── FastAPI backend (local, no Docker) ────────────────────────────────────
+    {
+      "name": "FastAPI: dev",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend"
+      },
+      "jinja": true,
+      "justMyCode": false
+    },
+
+    // ── Celery worker (local) ─────────────────────────────────────────────────
+    {
+      "name": "Celery: worker",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "celery",
+      "args": [
+        "-A", "app.workers.celery_app",
+        "worker",
+        "--loglevel=info",
+        "-Q", "default,ml",
+        "--concurrency=1"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend"
+      },
+      "justMyCode": false
+    },
+
+    // ── Celery beat (local) ───────────────────────────────────────────────────
+    {
+      "name": "Celery: beat",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "celery",
+      "args": [
+        "-A", "app.workers.celery_app",
+        "beat",
+        "--loglevel=info"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend"
+      },
+      "justMyCode": false
+    },
+
+    // ── pytest ────────────────────────────────────────────────────────────────
+    {
+      "name": "pytest: all tests",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["tests/", "-v", "--tb=short"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend",
+        "DATABASE_URL": "postgresql+asyncpg://energyos:energyos@localhost:5432/energyos",
+        "DATABASE_SYNC_URL": "postgresql+psycopg2://energyos:energyos@localhost:5432/energyos",
+        "REDIS_URL": "redis://localhost:6379/0"
+      },
+      "justMyCode": false
+    },
+
+    // ── Attach to running Docker container ────────────────────────────────────
+    {
+      "name": "Docker: attach backend",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/backend",
+          "remoteRoot": "/app"
+        }
+      ],
+      "justMyCode": false
+    }
+  ],
+
+  "compounds": [
+    {
+      "name": "Full stack (local)",
+      "configurations": ["FastAPI: dev", "Celery: worker", "Celery: beat"]
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  // ── Python (backend) ──────────────────────────────────────────────────────
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "ruff.lint.args": ["--config=${workspaceFolder}/backend/pyproject.toml"],
+  "python.analysis.extraPaths": ["${workspaceFolder}/backend"],
+  "python.analysis.typeCheckingMode": "basic",
+
+  // ── TypeScript / React (frontend) ─────────────────────────────────────────
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "typescript.preferences.importModuleSpecifier": "relative",
+
+  // ── Terraform / HCL ───────────────────────────────────────────────────────
+  "[terraform]": {
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.formatOnSave": true
+  },
+
+  // ── Editor general ────────────────────────────────────────────────────────
+  "editor.rulers": [100],
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.trimAutoWhitespace": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // ── File associations ─────────────────────────────────────────────────────
+  "files.associations": {
+    "*.env.example": "dotenv",
+    "alembic.ini": "ini",
+    "docker-compose*.yml": "dockercompose"
+  },
+
+  // ── Explorer excludes ─────────────────────────────────────────────────────
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/*.pyc": true,
+    "**/node_modules": true,
+    "frontend/dist": true,
+    "**/.ruff_cache": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "frontend/dist": true,
+    "**/__pycache__": true,
+    "**/.ruff_cache": true
+  },
+
+  // ── Docker ────────────────────────────────────────────────────────────────
+  "docker.defaultRegistryPath": "ecr",
+
+  // ── Test runner ───────────────────────────────────────────────────────────
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["backend/tests", "-v", "--tb=short"],
+  "python.testing.cwd": "${workspaceFolder}"
+}

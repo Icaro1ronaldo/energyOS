@@ -1,0 +1,86 @@
+{
+  "name": "EnergyOS",
+
+  // Python 3.11 base — matches production image
+  "image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
+
+  // ── Extra CLI tools installed as features ──────────────────────────────────
+  "features": {
+    // Node 20 for the React frontend
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    // Docker-in-Docker so `docker compose up` works inside the Codespace
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    },
+    // Terraform for infrastructure management
+    "ghcr.io/devcontainers/features/terraform:1": {
+      "version": "latest"
+    },
+    // AWS CLI for ECR / ECS / S3 operations
+    "ghcr.io/devcontainers/features/aws-cli:1": {
+      "version": "latest"
+    },
+    // GitHub CLI for PR / issue workflows
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    }
+  },
+
+  // ── Run once after the container is created ────────────────────────────────
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+
+  // ── Environment variables available in every terminal ─────────────────────
+  "remoteEnv": {
+    "PYTHONPATH": "${containerWorkspaceFolder}/backend",
+    // ~/.local/bin  →  uv binary installed by the official installer
+    // backend/.venv/bin  →  project Python + all packages
+    "PATH": "${containerEnv:PATH}:${containerEnv:HOME}/.local/bin:${containerWorkspaceFolder}/backend/.venv/bin"
+  },
+
+  // ── Port forwarding ───────────────────────────────────────────────────────
+  "forwardPorts": [
+    8000,  // FastAPI backend
+    5173,  // Vite dev server
+    5432,  // PostgreSQL (docker compose)
+    6379,  // Redis (docker compose)
+    80     // Nginx / frontend (docker compose)
+  ],
+  "portsAttributes": {
+    "8000": { "label": "FastAPI", "onAutoForward": "notify" },
+    "5173": { "label": "Vite dev", "onAutoForward": "openBrowser" },
+    "80":   { "label": "Frontend", "onAutoForward": "notify" }
+  },
+
+  // ── VS Code extensions auto-installed in the Codespace ───────────────────
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "ms-azuretools.vscode-docker",
+        "hashicorp.terraform",
+        "cweijan.vscode-postgresql-client2",
+        "humao.rest-client",
+        "github.vscode-pull-request-github",
+        "eamodio.gitlens",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml",
+        "mikestead.dotenv",
+        "usernamehw.errorlens",
+        "christian-kohler.path-intellisense"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/backend/.venv/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests/", "-v", "--tb=short"],
+        "python.testing.cwd": "${containerWorkspaceFolder}/backend"
+      }
+    }
+  }
+}

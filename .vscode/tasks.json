@@ -1,0 +1,203 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // ── Docker Compose ────────────────────────────────────────────────────────
+    {
+      "label": "docker: up",
+      "type": "shell",
+      "command": "docker compose up --build",
+      "group": "build",
+      "presentation": { "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: up (detached)",
+      "type": "shell",
+      "command": "docker compose up --build -d",
+      "group": "build",
+      "presentation": { "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: down",
+      "type": "shell",
+      "command": "docker compose down",
+      "presentation": { "panel": "shared", "reveal": "silent" },
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: logs backend",
+      "type": "shell",
+      "command": "docker compose logs -f backend",
+      "presentation": { "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: logs worker",
+      "type": "shell",
+      "command": "docker compose logs -f celery_worker",
+      "presentation": { "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": []
+    },
+
+    // ── Alembic migrations ────────────────────────────────────────────────────
+    {
+      "label": "alembic: upgrade head",
+      "type": "shell",
+      "command": "docker compose exec backend alembic upgrade head",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "alembic: downgrade -1",
+      "type": "shell",
+      "command": "docker compose exec backend alembic downgrade -1",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "alembic: new migration",
+      "type": "shell",
+      "command": "docker compose exec backend alembic revision --autogenerate -m '${input:migrationName}'",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "alembic: history",
+      "type": "shell",
+      "command": "docker compose exec backend alembic history --verbose",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+
+    // ── Backend: linting & tests ──────────────────────────────────────────────
+    {
+      "label": "backend: lint (ruff)",
+      "type": "shell",
+      "command": "cd backend && ruff check app/",
+      "group": { "kind": "test", "isDefault": false },
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": {
+        "owner": "ruff",
+        "fileLocation": ["relative", "${workspaceFolder}/backend"],
+        "pattern": {
+          "regexp": "^(.+):(\\d+):(\\d+):\\s+(\\w+)\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "backend: test (docker)",
+      "type": "shell",
+      "command": "docker compose exec backend pytest tests/ -v --tb=short",
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": []
+    },
+
+    // ── Celery tasks ──────────────────────────────────────────────────────────
+    {
+      "label": "celery: backfill (2 years)",
+      "type": "shell",
+      "command": "docker compose exec celery_worker celery -A app.workers.celery_app call app.workers.backfill.run_backfill",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "celery: run forecasts now",
+      "type": "shell",
+      "command": "docker compose exec celery_worker celery -A app.workers.celery_app call app.workers.ml_forecast.run_all_forecasts",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "celery: ingest now",
+      "type": "shell",
+      "command": "docker compose exec celery_worker celery -A app.workers.celery_app call app.workers.ingestion.ingest_all",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+
+    // ── Frontend ──────────────────────────────────────────────────────────────
+    {
+      "label": "frontend: dev",
+      "type": "shell",
+      "command": "cd frontend && npm run dev",
+      "presentation": { "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "frontend: build",
+      "type": "shell",
+      "command": "cd frontend && npm run build",
+      "group": "build",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "frontend: install deps",
+      "type": "shell",
+      "command": "cd frontend && npm ci",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+
+    // ── uv (Python deps) ──────────────────────────────────────────────────────
+    {
+      "label": "uv: install deps",
+      "type": "shell",
+      "command": "uv pip install ruff pytest httpx -r backend/requirements.txt --python backend/.venv/bin/python",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "uv: add package",
+      "type": "shell",
+      "command": "cd backend && uv pip install ${input:packageName} --python .venv/bin/python && uv pip freeze > requirements.txt",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+
+    // ── Terraform ─────────────────────────────────────────────────────────────
+    {
+      "label": "terraform: init",
+      "type": "shell",
+      "command": "cd infra && terraform init",
+      "presentation": { "panel": "shared", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "terraform: plan",
+      "type": "shell",
+      "command": "cd infra && terraform plan",
+      "presentation": { "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": []
+    },
+    {
+      "label": "terraform: apply",
+      "type": "shell",
+      "command": "cd infra && terraform apply",
+      "presentation": { "panel": "dedicated", "reveal": "always" },
+      "problemMatcher": []
+    }
+  ],
+
+  "inputs": [
+    {
+      "id": "migrationName",
+      "description": "Migration name (snake_case)",
+      "default": "add_column",
+      "type": "promptString"
+    },
+    {
+      "id": "packageName",
+      "description": "Package name to install (e.g. httpx)",
+      "default": "",
+      "type": "promptString"
+    }
+  ]
+}
