@@ -34,12 +34,21 @@ def ingest_all():
             print(f"[ingestion] production {zone}: {e}")
 
 
+def _to_dt(ts) -> "datetime":
+    return pd.Timestamp(ts).to_pydatetime()
+
+
+def _col_to_type(col) -> str:
+    raw = col[0] if isinstance(col, tuple) else col
+    return str(raw).lower().replace(" ", "_").replace("-", "_").replace("/", "_")[:50]
+
+
 def _ingest_prices(zone: str, start: datetime, end: datetime):
     series = entsoe_svc.fetch_prices(zone, _ts(start), _ts(end))
     with SyncSessionLocal() as db:
         for ts, price in series.items():
             db.merge(EnergyPrice(
-                timestamp=ts.to_pydatetime(),
+                timestamp=_to_dt(ts),
                 bidding_zone=zone,
                 is_forecast=False,
                 price_eur_mwh=float(price),
@@ -53,7 +62,7 @@ def _ingest_load(zone: str, start: datetime, end: datetime):
     with SyncSessionLocal() as db:
         for ts, load in series.items():
             db.merge(EnergyLoad(
-                timestamp=ts.to_pydatetime(),
+                timestamp=_to_dt(ts),
                 bidding_zone=zone,
                 is_forecast=False,
                 load_mw=float(load),
@@ -69,12 +78,12 @@ def _ingest_production(zone: str, start: datetime, end: datetime):
     with SyncSessionLocal() as db:
         for ts, row_data in df.iterrows():
             for col in df.columns:
-                prod_type = str(col).lower().replace(" ", "_").replace("-", "_")
+                prod_type = _col_to_type(col)
                 val = row_data[col]
                 if pd.isna(val):
                     continue
                 db.merge(EnergyProduction(
-                    timestamp=ts.to_pydatetime(),
+                    timestamp=_to_dt(ts),
                     bidding_zone=zone,
                     production_type=prod_type,
                     is_forecast=False,
