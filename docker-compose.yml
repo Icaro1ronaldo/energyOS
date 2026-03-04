@@ -89,9 +89,6 @@ services:
       target: dev
     ports:
       - "5173:5173"
-    environment:
-      VITE_API_URL: http://localhost:8000
-      VITE_WS_URL: ws://localhost:8000
     depends_on:
       - backend
     volumes:
