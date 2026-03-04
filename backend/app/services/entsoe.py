@@ -31,8 +31,20 @@ def _area(zone: str) -> str:
 
 
 def fetch_prices(zone: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
-    """Day-ahead market prices (€/MWh) for the given bidding zone and period."""
-    return _client().query_day_ahead_prices(_area(zone), start=start, end=end)
+    """Day-ahead market prices (€/MWh) for the given bidding zone and period.
+
+    Tries resolutions in order: 60min → 15min → 30min, because some zones
+    (e.g. DE_LU from 2024 onwards) only publish 15-minute day-ahead prices.
+    """
+    client = _client()
+    area = _area(zone)
+    for res in ("60min", "15min", "30min"):
+        try:
+            return client.query_day_ahead_prices(area, start=start, end=end, resolution=res)
+        except Exception:
+            continue
+    # all resolutions failed — re-raise the last error
+    return client.query_day_ahead_prices(area, start=start, end=end, resolution="60min")
 
 
 def fetch_load(zone: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
