@@ -37,7 +37,12 @@ def fetch_prices(zone: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series
 
 def fetch_load(zone: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
     """Actual total load (MW) for the given bidding zone and period."""
-    return _client().query_load(_area(zone), start=start, end=end)
+    result = _client().query_load(_area(zone), start=start, end=end)
+    # query_load returns a DataFrame with an 'Actual Load' column
+    if isinstance(result, pd.DataFrame):
+        col = "Actual Load" if "Actual Load" in result.columns else result.columns[0]
+        return result[col]
+    return result
 
 
 def fetch_generation(zone: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
