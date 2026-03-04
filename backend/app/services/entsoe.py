@@ -33,12 +33,14 @@ def _area(zone: str) -> str:
 def fetch_prices(zone: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
     """Day-ahead market prices (€/MWh) for the given bidding zone and period.
 
-    Tries resolutions in order: 60min → 15min → 30min, because some zones
-    (e.g. DE_LU from 2024 onwards) only publish 15-minute day-ahead prices.
+    Tries 15min first (most granular), then 60min, then 30min.
+    DE_LU and ES switched to 15-min day-ahead prices in 2024/2025.
+    Trying 60min first returns partial data for mixed-resolution windows
+    without raising an error, so we must start with the finest resolution.
     """
     client = _client()
     area = _area(zone)
-    for res in ("60min", "15min", "30min"):
+    for res in ("15min", "60min", "30min"):
         try:
             return client.query_day_ahead_prices(area, start=start, end=end, resolution=res)
         except Exception:
