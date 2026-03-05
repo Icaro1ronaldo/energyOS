@@ -47,8 +47,11 @@ def run_backfill(years: int = 2):
 
 
 def _to_dt(ts) -> "datetime":
-    """Convert any timestamp (pd.Timestamp, str, datetime) to a tz-aware datetime."""
-    return pd.Timestamp(ts).to_pydatetime()
+    """Convert any timestamp to UTC-aware datetime for consistent DB primary key matching."""
+    t = pd.Timestamp(ts)
+    if t.tzinfo is None:
+        t = t.tz_localize("UTC")
+    return t.tz_convert("UTC").to_pydatetime()
 
 
 def _col_to_type(col) -> str:

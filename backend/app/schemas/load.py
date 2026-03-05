@@ -1,12 +1,11 @@
 from pydantic import BaseModel
 from datetime import datetime
-from decimal import Decimal
 
 
 class LoadPoint(BaseModel):
     timestamp: datetime
     bidding_zone: str
-    load_mw: Decimal | None
+    load_mw: float | None
     is_forecast: bool
 
     model_config = {"from_attributes": True}

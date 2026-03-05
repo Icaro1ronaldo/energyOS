@@ -35,7 +35,10 @@ def ingest_all():
 
 
 def _to_dt(ts) -> "datetime":
-    return pd.Timestamp(ts).to_pydatetime()
+    t = pd.Timestamp(ts)
+    if t.tzinfo is None:
+        t = t.tz_localize("UTC")
+    return t.tz_convert("UTC").to_pydatetime()
 
 
 def _col_to_type(col) -> str:

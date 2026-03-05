@@ -63,15 +63,15 @@ export default function DashboardPage({ zone }: Props) {
     return {
       now,
       nowIso: now.toISOString(),
-      past5d: subDays(now, 5).toISOString(),
+      past7d: subDays(now, 7).toISOString(),
       past2d: subHours(now, 48).toISOString(),
       future48h: addHours(now, 48).toISOString(),
     };
   });
 
-  const { data: prices, status: pSt } = usePrices(zone, ref.past5d, ref.future48h);
-  const { data: load, status: lSt } = useLoad(zone, ref.past5d, ref.future48h);
-  const { data: production, status: prodSt } = useProduction(zone, ref.past5d, ref.nowIso);
+  const { data: prices, status: pSt } = usePrices(zone, ref.past7d, ref.future48h);
+  const { data: load, status: lSt } = useLoad(zone, ref.past7d, ref.future48h);
+  const { data: production, status: prodSt } = useProduction(zone, ref.past7d, ref.nowIso);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const latestPrice = prices?.actuals.at(-1)?.price_eur_mwh ?? null;
@@ -171,21 +171,21 @@ export default function DashboardPage({ zone }: Props) {
       </div>
 
       {/* Electricity prices: 5d actuals + 48h forecast */}
-      <Section title="Electricity Prices" sub={`Last 5 days actuals · 48h ML forecast · ${zone}`}>
+      <Section title="Electricity Prices" sub={`Last 7 days actuals · 48h ML forecast · ${zone}`}>
         {pSt === "loading" && <Empty text="Loading…" />}
         {pSt === "error" && <Empty text="Failed to load price data." />}
         {prices && <PriceChart actuals={prices.actuals} forecasts={prices.forecasts} />}
       </Section>
 
       {/* Load: 5d actuals + 48h forecast */}
-      <Section title="Energy Load" sub={`Last 5 days actuals · 48h ML forecast · ${zone}`}>
+      <Section title="Energy Load" sub={`Last 7 days actuals · 48h ML forecast · ${zone}`}>
         {lSt === "loading" && <Empty text="Loading…" />}
         {lSt === "error" && <Empty text="Failed to load load data." />}
         {load && <LoadChart actuals={load.actuals} forecasts={load.forecasts} />}
       </Section>
 
       {/* Generation mix */}
-      <Section title="Generation Mix" sub={`Last 5 days actuals by production type · ${zone}`}>
+      <Section title="Generation Mix" sub={`Last 7 days actuals by production type · ${zone}`}>
         {prodSt === "loading" && <Empty text="Loading…" />}
         {prodSt === "error" && <Empty text="Failed to load production data." />}
         {production && production.length > 0 && <ProductionChart data={production} />}

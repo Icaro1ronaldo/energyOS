@@ -16,7 +16,8 @@ export function useWebSocket({ onMessage }: Options) {
   onMessageRef.current = onMessage;
 
   const connect = useCallback(() => {
-    const wsUrl = `${import.meta.env.VITE_WS_URL || "ws://localhost:8000"}/ws/live`;
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws/live`;
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => setConnected(true);

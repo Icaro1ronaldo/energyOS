@@ -1,13 +1,12 @@
 from pydantic import BaseModel
 from datetime import datetime
-from decimal import Decimal
 
 
 class ProductionPoint(BaseModel):
     timestamp: datetime
     bidding_zone: str
     production_type: str
-    value_mw: Decimal | None
+    value_mw: float | None
     is_forecast: bool
 
     model_config = {"from_attributes": True}
