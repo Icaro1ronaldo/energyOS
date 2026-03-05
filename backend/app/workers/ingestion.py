@@ -71,6 +71,21 @@ def _ingest_load(zone: str, start: datetime, end: datetime):
                 load_mw=float(load),
             ))
         db.commit()
+
+    try:
+        forecast = entsoe_svc.fetch_load_forecast(zone, _ts(start), _ts(end))
+        with SyncSessionLocal() as db:
+            for ts, load in forecast.items():
+                db.merge(EnergyLoad(
+                    timestamp=_to_dt(ts),
+                    bidding_zone=zone,
+                    is_forecast=True,
+                    load_mw=float(load),
+                ))
+            db.commit()
+    except Exception as e:
+        print(f"[ingestion] load forecast {zone}: {e}")
+
     publish(CHANNEL_LOAD, {"zone": zone, "domain": "load"})
 
 

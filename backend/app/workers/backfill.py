@@ -84,6 +84,15 @@ def _load(zone, start, end):
             ))
         db.commit()
 
+    forecast = entsoe_svc.fetch_load_forecast(zone, _ts(start), _ts(end))
+    with SyncSessionLocal() as db:
+        for ts, load in forecast.items():
+            db.merge(EnergyLoad(
+                timestamp=_to_dt(ts), bidding_zone=zone,
+                is_forecast=True, load_mw=float(load),
+            ))
+        db.commit()
+
 
 def _production(zone, start, end):
     df = entsoe_svc.fetch_generation(zone, _ts(start), _ts(end))

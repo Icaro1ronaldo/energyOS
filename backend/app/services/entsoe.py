@@ -59,6 +59,15 @@ def fetch_load(zone: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
     return result
 
 
+def fetch_load_forecast(zone: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
+    """Day-ahead total load forecast (MW) for the given bidding zone and period."""
+    result = _client().query_load_forecast(_area(zone), start=start, end=end)
+    if isinstance(result, pd.DataFrame):
+        col = "Forecasted Load" if "Forecasted Load" in result.columns else result.columns[0]
+        return result[col].dropna()
+    return result
+
+
 def fetch_generation(zone: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
     """Actual generation per production type (MW) for the given period."""
     return _client().query_generation(_area(zone), start=start, end=end, psr_type=None)
