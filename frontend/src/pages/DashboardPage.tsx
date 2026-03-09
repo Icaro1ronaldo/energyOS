@@ -5,6 +5,7 @@ import KpiCard from "../components/KpiCard";
 import PriceChart from "../components/charts/PriceChart";
 import LoadChart from "../components/charts/LoadChart";
 import ProductionChart from "../components/charts/ProductionChart";
+import DateRangePicker from "../components/DateRangePicker";
 import { PricePoint, LoadPoint } from "../services/api";
 
 interface Props { zone: string; }
@@ -57,21 +58,23 @@ function MaeBadge({ mae, unit }: { mae: string | null; unit: string }) {
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage({ zone }: Props) {
-  // Time windows computed once at mount — stable string refs prevent spurious refetches
-  const [ref] = useState(() => {
-    const now = new Date();
-    return {
-      now,
-      nowIso: now.toISOString(),
-      past7d: subDays(now, 7).toISOString(),
-      past2d: subHours(now, 48).toISOString(),
-      future48h: addHours(now, 48).toISOString(),
-    };
-  });
+  const nowRef = useState(() => new Date())[0];
+  const [startDate, setStartDate] = useState(() => subDays(nowRef, 7));
+  const [endDate, setEndDate] = useState(() => nowRef);
 
-  const { data: prices, status: pSt } = usePrices(zone, ref.past7d, ref.future48h);
-  const { data: load, status: lSt } = useLoad(zone, ref.past7d, ref.future48h);
-  const { data: production, status: prodSt } = useProduction(zone, ref.past7d, ref.nowIso);
+  const ref = useMemo(() => ({
+    now: nowRef,
+    nowIso: nowRef.toISOString(),
+    past2d: subHours(nowRef, 48).toISOString(),
+    future48h: addHours(nowRef, 48).toISOString(),
+  }), [nowRef]);
+
+  const startIso = startDate.toISOString();
+  const endIso = addHours(endDate, 24).toISOString();
+
+  const { data: prices, status: pSt } = usePrices(zone, startIso, endIso);
+  const { data: load, status: lSt } = useLoad(zone, startIso, endIso);
+  const { data: production, status: prodSt } = useProduction(zone, startIso, endIso);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const latestPrice = prices?.actuals.at(-1)?.price_eur_mwh ?? null;
@@ -140,6 +143,15 @@ export default function DashboardPage({ zone }: Props) {
   return (
     <div style={{ padding: "24px 32px", maxWidth: 1400, margin: "0 auto" }}>
 
+      {/* Date range picker */}
+      <div style={{ marginBottom: 28 }}>
+        <DateRangePicker
+          start={startDate}
+          end={endDate}
+          onChange={(s, e) => { setStartDate(s); setEndDate(e); }}
+        />
+      </div>
+
       {/* KPI row */}
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 36 }}>
         <KpiCard
@@ -171,21 +183,21 @@ export default function DashboardPage({ zone }: Props) {
       </div>
 
       {/* Electricity prices: 5d actuals + 48h forecast */}
-      <Section title="Electricity Prices" sub={`Last 7 days actuals · 48h ML forecast · ${zone}`}>
+      <Section title="Electricity Prices" sub={`${startDate.toLocaleDateString()} → ${endDate.toLocaleDateString()} · ${zone}`}>
         {pSt === "loading" && <Empty text="Loading…" />}
         {pSt === "error" && <Empty text="Failed to load price data." />}
         {prices && <PriceChart actuals={prices.actuals} forecasts={prices.forecasts} />}
       </Section>
 
       {/* Load: 5d actuals + 48h forecast */}
-      <Section title="Energy Load" sub={`Last 7 days actuals · 48h ML forecast · ${zone}`}>
+      <Section title="Energy Load" sub={`${startDate.toLocaleDateString()} → ${endDate.toLocaleDateString()} · ${zone}`}>
         {lSt === "loading" && <Empty text="Loading…" />}
         {lSt === "error" && <Empty text="Failed to load load data." />}
         {load && <LoadChart actuals={load.actuals} forecasts={load.forecasts} />}
       </Section>
 
       {/* Generation mix */}
-      <Section title="Generation Mix" sub={`Last 7 days actuals by production type · ${zone}`}>
+      <Section title="Generation Mix" sub={`${startDate.toLocaleDateString()} → ${endDate.toLocaleDateString()} · ${zone}`}>
         {prodSt === "loading" && <Empty text="Loading…" />}
         {prodSt === "error" && <Empty text="Failed to load production data." />}
         {production && production.length > 0 && <ProductionChart data={production} />}

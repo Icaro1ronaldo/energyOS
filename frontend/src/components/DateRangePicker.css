@@ -1,0 +1,88 @@
+/* Input field */
+.eos-datepicker-input {
+  background: #1a1f2e;
+  color: #e2e8f0;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  width: 130px;
+}
+.eos-datepicker-input:focus {
+  border-color: #63b3ed;
+}
+
+/* Calendar popup */
+.eos-calendar {
+  background: #1a1f2e !important;
+  border: 1px solid #2d3748 !important;
+  border-radius: 8px !important;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+}
+
+/* Header */
+.eos-calendar .react-datepicker__header {
+  background: #0f1117 !important;
+  border-bottom: 1px solid #2d3748 !important;
+  border-radius: 8px 8px 0 0 !important;
+}
+.eos-calendar .react-datepicker__current-month,
+.eos-calendar .react-datepicker__day-name {
+  color: #94a3b8 !important;
+}
+
+/* Navigation arrows */
+.eos-calendar .react-datepicker__navigation-icon::before {
+  border-color: #94a3b8 !important;
+}
+.eos-calendar .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: #e2e8f0 !important;
+}
+
+/* Dropdowns (month/year) */
+.eos-calendar .react-datepicker__month-select,
+.eos-calendar .react-datepicker__year-select {
+  background: #2d3748;
+  color: #e2e8f0;
+  border: 1px solid #4a5568;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+
+/* Days */
+.eos-calendar .react-datepicker__day {
+  color: #e2e8f0 !important;
+  border-radius: 4px !important;
+}
+.eos-calendar .react-datepicker__day:hover {
+  background: #2d3748 !important;
+}
+.eos-calendar .react-datepicker__day--selected,
+.eos-calendar .react-datepicker__day--range-start,
+.eos-calendar .react-datepicker__day--range-end {
+  background: #3182ce !important;
+  color: #fff !important;
+}
+.eos-calendar .react-datepicker__day--in-range {
+  background: #1e3a5f !important;
+  color: #90cdf4 !important;
+}
+.eos-calendar .react-datepicker__day--in-selecting-range {
+  background: #2a4a7f !important;
+}
+.eos-calendar .react-datepicker__day--disabled {
+  color: #4a5568 !important;
+}
+.eos-calendar .react-datepicker__day--outside-month {
+  color: #4a5568 !important;
+}
+
+/* Triangle pointer */
+.react-datepicker-popper[data-placement^="bottom"] .react-datepicker__triangle::before,
+.react-datepicker-popper[data-placement^="bottom"] .react-datepicker__triangle::after {
+  border-bottom-color: #1a1f2e !important;
+}
