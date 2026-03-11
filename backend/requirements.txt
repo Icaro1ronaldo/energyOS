@@ -16,7 +16,7 @@ redis==5.0.4
 celery[redis]==5.4.0
 
 # ML forecasting
-prophet==1.1.5
+lightgbm>=4.3
 pandas==2.2.2
 numpy==1.26.4
 

@@ -9,6 +9,8 @@ class EnergyPrice(Base):
     bidding_zone = Column(String(20), nullable=False, primary_key=True)
     is_forecast = Column(Boolean, nullable=False, primary_key=True, default=False)
     price_eur_mwh = Column(Numeric(10, 4))
+    price_lower_eur_mwh = Column(Numeric(10, 4), nullable=True)
+    price_upper_eur_mwh = Column(Numeric(10, 4), nullable=True)
 
     __table_args__ = (
         Index("ix_energy_prices_zone_ts", "bidding_zone", "timestamp"),

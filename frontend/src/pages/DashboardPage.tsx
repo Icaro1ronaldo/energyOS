@@ -6,9 +6,9 @@ import PriceChart from "../components/charts/PriceChart";
 import LoadChart from "../components/charts/LoadChart";
 import ProductionChart from "../components/charts/ProductionChart";
 import DateRangePicker from "../components/DateRangePicker";
-import { PricePoint, LoadPoint } from "../services/api";
+import { PricePoint } from "../services/api";
 
-interface Props { zone: string; }
+const ZONES = ["DE_LU", "FR", "ES", "PT", "NL", "BE"];
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -46,19 +46,11 @@ function Empty({ text }: { text: string }) {
   return <div style={{ textAlign: "center", padding: "48px 0", color: "#4a5568", fontSize: 13 }}>{text}</div>;
 }
 
-function MaeBadge({ mae, unit }: { mae: string | null; unit: string }) {
-  if (!mae) return null;
-  return (
-    <span style={{ fontSize: 11, background: "#2d3748", padding: "2px 8px", borderRadius: 4, color: "#f6ad55" }}>
-      MAE {mae} {unit}
-    </span>
-  );
-}
-
 // ── component ─────────────────────────────────────────────────────────────────
 
-export default function DashboardPage({ zone }: Props) {
+export default function DashboardPage() {
   const nowRef = useState(() => new Date())[0];
+  const [zone, setZone] = useState("DE_LU");
   const [startDate, setStartDate] = useState(() => subDays(nowRef, 7));
   const [endDate, setEndDate] = useState(() => nowRef);
 
@@ -110,7 +102,7 @@ export default function DashboardPage({ zone }: Props) {
     return Math.abs(diff) < 1 ? "flat" : diff > 0 ? "up" : "down";
   }, [latestPrice, prices, ref.now]);
 
-  // ── Forecast accuracy: past 48h forecasts vs actuals ──────────────────────
+  // ── Price MAE: hindcast rows (past, is_forecast=true) vs actuals ──────────
   const pricePastFc = useMemo<PricePoint[]>(
     () => prices?.forecasts.filter((p) => p.timestamp <= ref.nowIso && p.timestamp >= ref.past2d) ?? [],
     [prices, ref],
@@ -119,32 +111,27 @@ export default function DashboardPage({ zone }: Props) {
     () => prices?.actuals.filter((p) => p.timestamp >= ref.past2d) ?? [],
     [prices, ref],
   );
-  const loadPastFc = useMemo<LoadPoint[]>(
-    () => load?.forecasts.filter((p) => p.timestamp <= ref.nowIso && p.timestamp >= ref.past2d) ?? [],
-    [load, ref],
-  );
-  const loadAccActuals = useMemo<LoadPoint[]>(
-    () => load?.actuals.filter((p) => p.timestamp >= ref.past2d) ?? [],
-    [load, ref],
-  );
-
   const priceMAE = useMemo(
     () => computeMAE(priceAccActuals, pricePastFc, "price_eur_mwh"),
     [priceAccActuals, pricePastFc],
   );
-  const loadMAE = useMemo(
-    () => computeMAE(loadAccActuals, loadPastFc, "load_mw"),
-    [loadAccActuals, loadPastFc],
-  );
-
-  const hasAccuracyData = pricePastFc.length > 0 || loadPastFc.length > 0;
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ padding: "24px 32px", maxWidth: 1400, margin: "0 auto" }}>
 
-      {/* Date range picker */}
-      <div style={{ marginBottom: 28 }}>
+      {/* Controls row: zone selector + date range */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28, flexWrap: "wrap" }}>
+        <select
+          value={zone}
+          onChange={(e) => setZone(e.target.value)}
+          style={{
+            background: "#2d3748", color: "#e2e8f0", border: "1px solid #4a5568",
+            borderRadius: 6, padding: "6px 12px", fontSize: 13, cursor: "pointer",
+          }}
+        >
+          {ZONES.map((z) => <option key={z}>{z}</option>)}
+        </select>
         <DateRangePicker
           start={startDate}
           end={endDate}
@@ -182,11 +169,11 @@ export default function DashboardPage({ zone }: Props) {
         />
       </div>
 
-      {/* Electricity prices: 5d actuals + 48h forecast */}
+      {/* Electricity prices: actuals + hindcast + 48h forecast */}
       <Section title="Electricity Prices" sub={`${startDate.toLocaleDateString()} → ${endDate.toLocaleDateString()} · ${zone}`}>
         {pSt === "loading" && <Empty text="Loading…" />}
         {pSt === "error" && <Empty text="Failed to load price data." />}
-        {prices && <PriceChart actuals={prices.actuals} forecasts={prices.forecasts} />}
+        {prices && <PriceChart actuals={prices.actuals} forecasts={prices.forecasts} mae={priceMAE} />}
       </Section>
 
       {/* Load: 5d actuals + 48h forecast */}
@@ -202,37 +189,6 @@ export default function DashboardPage({ zone }: Props) {
         {prodSt === "error" && <Empty text="Failed to load production data." />}
         {production && production.length > 0 && <ProductionChart data={production} />}
         {production && production.length === 0 && <Empty text="No production data available." />}
-      </Section>
-
-      {/* Forecast accuracy: last 48h */}
-      <Section
-        title="Forecast Accuracy · last 48h"
-        sub="ML model predictions vs actual values for completed hours"
-      >
-        {!hasAccuracyData ? (
-          <Empty text="No forecasts generated yet — run the ML worker to enable accuracy tracking." />
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>Price forecast</span>
-                <MaeBadge mae={priceMAE} unit="€/MWh" />
-              </div>
-              {pricePastFc.length > 0
-                ? <PriceChart actuals={priceAccActuals} forecasts={pricePastFc} />
-                : <Empty text="No price forecasts in this window." />}
-            </div>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>Load forecast</span>
-                <MaeBadge mae={loadMAE} unit="MW" />
-              </div>
-              {loadPastFc.length > 0
-                ? <LoadChart actuals={loadAccActuals} forecasts={loadPastFc} />
-                : <Empty text="No load forecasts in this window." />}
-            </div>
-          </div>
-        )}
       </Section>
 
     </div>

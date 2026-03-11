@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { subDays, format } from "date-fns";
+import { subDays, addHours, format } from "date-fns";
 import { useMultiZonePrices, useMultiZoneLoad, useMultiZoneProduction } from "../hooks/useMultiZoneData";
 import EuropeMap from "../components/EuropeMap";
 import MultiZoneLineChart from "../components/charts/MultiZoneLineChart";
@@ -8,6 +8,9 @@ import { MAP_ZONES, ZONE_COLORS, PROD_TYPE_COLOR, prodTypeLabel } from "../const
 import { PriceResponse, LoadResponse, ProductionResponse } from "../services/api";
 
 type Metric = "prices" | "load" | "production";
+
+/** Zones that have real data ingested. */
+const DATA_ZONES = ["DE_LU", "FR", "ES", "PT", "NL", "BE"];
 
 // 15-min resolution → each sample covers 0.25 h
 const H_PER_SAMPLE = 0.25;
@@ -44,6 +47,18 @@ function totalGWh(mwValues: number[]): number | null {
 }
 
 // ── time-series merging for comparison chart ───────────────────────────────────
+
+function mergeForecastPriceSeries(zoneData: Record<string, PriceResponse | null>): Record<string, unknown>[] {
+  const byTs = new Map<string, Record<string, unknown>>();
+  for (const [zone, d] of Object.entries(zoneData)) {
+    if (!d) continue;
+    for (const p of d.forecasts) {
+      if (!byTs.has(p.timestamp)) byTs.set(p.timestamp, { timestamp: p.timestamp });
+      byTs.get(p.timestamp)![zone] = Number(p.price_eur_mwh);
+    }
+  }
+  return Array.from(byTs.values()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+}
 
 function mergePriceSeries(zoneData: Record<string, PriceResponse | null>): Record<string, unknown>[] {
   const byTs = new Map<string, Record<string, unknown>>();
@@ -158,6 +173,12 @@ export default function MapPage() {
 
   const startIso = startDate.toISOString();
   const endIso   = endDate.toISOString();
+
+  // ── Forecast price comparison: all data zones, last 7 days + 48h forward ──
+  const fcStart = useMemo(() => subDays(new Date(), 7).toISOString(), []);
+  const fcEnd   = useMemo(() => addHours(new Date(), 48).toISOString(), []);
+  const { data: allFcPrices, loading: lFcPrice } = useMultiZonePrices(DATA_ZONES, fcStart, fcEnd);
+  const forecastChartData = useMemo(() => mergeForecastPriceSeries(allFcPrices), [allFcPrices]);
 
   // Fetch ALL map zones for the selected period → used for both map coloring and chart
   const { data: allPrices, loading: lPrice } = useMultiZonePrices(
@@ -384,6 +405,22 @@ export default function MapPage() {
             })}
           </div>
         </div>
+      </div>
+
+      {/* Forecast price comparison: all zones, last 7 days + 48h forward */}
+      <div style={{ background: "#1a1f2e", border: "1px solid #2d3748", borderRadius: 8, padding: "20px 12px", marginBottom: 28 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16, paddingLeft: 8 }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#e2e8f0" }}>
+            Forecast Price Comparison · all zones
+          </h2>
+          <span style={{ fontSize: 12, color: "#4a5568" }}>LightGBM p50 · last 7 days hindcast + 48h forward</span>
+        </div>
+        <MultiZoneLineChart
+          data={forecastChartData}
+          zones={DATA_ZONES}
+          unit="€/MWh"
+          loading={lFcPrice}
+        />
       </div>
 
       {/* Comparison chart */}

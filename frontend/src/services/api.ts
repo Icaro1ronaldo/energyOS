@@ -8,6 +8,8 @@ export interface PricePoint {
   timestamp: string;
   bidding_zone: string;
   price_eur_mwh: number | null;
+  price_lower_eur_mwh?: number | null;
+  price_upper_eur_mwh?: number | null;
   is_forecast: boolean;
 }
 

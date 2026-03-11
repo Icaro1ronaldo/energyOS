@@ -2,14 +2,12 @@ import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import DashboardPage from "./pages/DashboardPage";
 import MapPage from "./pages/MapPage";
 import ChatPage from "./pages/ChatPage";
+import DocsPage from "./pages/DocsPage";
 import LiveBadge from "./components/LiveBadge";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useState, useCallback } from "react";
 
-const ZONES = ["DE_LU", "FR", "ES", "PT", "NL", "BE"];
-
 export default function App() {
-  const [zone, setZone] = useState("DE_LU");
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
   const onMessage = useCallback((msg: { domain: string; zone: string }) => {
@@ -41,21 +39,11 @@ export default function App() {
           </span>
 
           <nav style={{ display: "flex", gap: 2 }}>
-            <NavLink to="/" end style={navStyle}>Dashboard</NavLink>
+            <NavLink to="/" end style={navStyle}>Overview</NavLink>
             <NavLink to="/map" style={navStyle}>Zone Map</NavLink>
             <NavLink to="/chat" style={navStyle}>AI Chat</NavLink>
+            <NavLink to="/docs" style={navStyle}>Docs</NavLink>
           </nav>
-
-          <select
-            value={zone}
-            onChange={(e) => setZone(e.target.value)}
-            style={{
-              background: "#2d3748", color: "#e2e8f0", border: "1px solid #4a5568",
-              borderRadius: 6, padding: "4px 10px", fontSize: 13, cursor: "pointer",
-            }}
-          >
-            {ZONES.map((z) => <option key={z}>{z}</option>)}
-          </select>
 
           <div style={{ marginLeft: "auto" }}>
             <LiveBadge connected={connected} lastUpdate={lastUpdate} />
@@ -63,9 +51,10 @@ export default function App() {
         </header>
 
         <Routes>
-          <Route path="/"     element={<DashboardPage zone={zone} />} />
+          <Route path="/"     element={<DashboardPage />} />
           <Route path="/map"  element={<MapPage />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/docs" element={<DocsPage />} />
         </Routes>
       </div>
     </BrowserRouter>
