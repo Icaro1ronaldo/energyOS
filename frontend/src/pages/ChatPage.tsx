@@ -16,6 +16,7 @@ export default function ChatPage() {
   const [input, setInput]         = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const [folded, setFolded]       = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -93,9 +94,25 @@ export default function ChatPage() {
 
   return (
     <div style={{
-      display: "flex", flexDirection: "column", height: "calc(100vh - 57px)",
+      display: "flex", flexDirection: "column", height: folded ? "auto" : "calc(100vh - 57px)",
       maxWidth: 860, margin: "0 auto", padding: "0 16px",
     }}>
+
+      {/* Fold/unfold header */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "12px 0", borderBottom: folded ? "none" : "1px solid #2d3748",
+        cursor: "pointer", userSelect: "none",
+      }} onClick={() => setFolded(f => !f)}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: "#94a3b8" }}>
+          ⚡ EnergyOS Assistant
+        </span>
+        <span style={{ fontSize: 12, color: "#4a5568" }}>
+          {folded ? "▼ expand" : "▲ collapse"}
+        </span>
+      </div>
+
+      {!folded && <>
 
       {/* Message list */}
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 0 12px" }}>
@@ -215,6 +232,7 @@ export default function ChatPage() {
           50%       { opacity: 1; }
         }
       `}</style>
+      </>}
     </div>
   );
 }

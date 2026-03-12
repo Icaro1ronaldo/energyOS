@@ -23,14 +23,14 @@ interface Slice { type: string; value: number; color: string }
 function MiniPie({ slices, r = 13 }: { slices: Slice[]; r?: number }) {
   const positive = slices.filter(s => s.value > 0);
   const total    = positive.reduce((s, d) => s + d.value, 0);
-  if (!total) return <circle r={r} fill="#2d3748" opacity={0.8} />;
+  if (!total) return <circle r={r} fill="#e2e8f0" opacity={0.8} />;
 
   // Single source → plain donut (arc from a point to itself is invalid SVG)
   if (positive.length === 1) {
     return (
       <>
         <circle r={r} fill={positive[0].color} />
-        <circle r={r * 0.42} fill="#1a1f2e" />
+        <circle r={r * 0.42} fill="#fff" />
       </>
     );
   }
@@ -58,7 +58,7 @@ function MiniPie({ slices, r = 13 }: { slices: Slice[]; r?: number }) {
   return (
     <>
       {paths}
-      <circle r={r * 0.42} fill="#1a1f2e" />
+      <circle r={r * 0.42} fill="#fff" />
     </>
   );
 }
@@ -73,9 +73,10 @@ export default function EuropeMap({ zoneValues, selectedZones, onZoneClick, colo
       {tooltip && (
         <div style={{
           position: "fixed", left: tooltip.x + 14, top: tooltip.y - 32,
-          background: "#0f1117", border: "1px solid #2d3748",
-          borderRadius: 4, padding: "4px 10px", fontSize: 12,
-          color: "#e2e8f0", pointerEvents: "none", zIndex: 200, whiteSpace: "nowrap",
+          background: "#fff", border: "1px solid rgba(0,0,0,0.08)",
+          borderRadius: 8, padding: "4px 10px", fontSize: 12,
+          color: "#1d1d1f", pointerEvents: "none", zIndex: 200, whiteSpace: "nowrap",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
         }}>
           {tooltip.text}
         </div>
@@ -97,10 +98,10 @@ export default function EuropeMap({ zoneValues, selectedZones, onZoneClick, colo
                 const selected = zone != null && selectedZones.includes(zone);
                 const fill    = value != null
                   ? colorScale(value)
-                  : zone != null ? "#3a4a60" : "#2a3448";
+                  : zone != null ? "#c8daea" : "#e8edf2";
                 const borderColor = (selected && zone != null)
-                  ? (ZONE_COLORS[zone] ?? "#63b3ed")
-                  : "#1a1f2e";
+                  ? (ZONE_COLORS[zone] ?? "#0071e3")
+                  : "rgba(255,255,255,0.8)";
 
                 return (
                   <Geography
@@ -127,8 +128,8 @@ export default function EuropeMap({ zoneValues, selectedZones, onZoneClick, colo
                         cursor: zone != null ? "pointer" : "default",
                         transition: "fill 0.25s",
                       },
-                      hover:   { fill: zone != null ? "#4a90d9" : fill, stroke: "#63b3ed", strokeWidth: 1.5, outline: "none" },
-                      pressed: { fill: "#3182ce", outline: "none" },
+                      hover:   { fill: zone != null ? "#a8c8e8" : fill, stroke: "#0071e3", strokeWidth: 1.5, outline: "none" },
+                      pressed: { fill: "#7ab8e0", outline: "none" },
                     }}
                   />
                 );
@@ -164,8 +165,8 @@ export default function EuropeMap({ zoneValues, selectedZones, onZoneClick, colo
                 }
                 onMouseLeave={() => setTooltip(null)}
               >
-                {/* Dark halo so the pie is visible over any country color */}
-                <circle r={15} fill="#0f1117" opacity={0.75} />
+                {/* Light halo so the pie is visible over any country color */}
+                <circle r={15} fill="#fff" opacity={0.85} />
                 <MiniPie slices={slices} r={14} />
               </g>
             </Marker>

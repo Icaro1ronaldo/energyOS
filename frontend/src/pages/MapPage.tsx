@@ -1,11 +1,14 @@
 import { useState, useMemo } from "react";
-import { subDays, addHours, format } from "date-fns";
+import { format } from "date-fns";
 import { useMultiZonePrices, useMultiZoneLoad, useMultiZoneProduction } from "../hooks/useMultiZoneData";
 import EuropeMap from "../components/EuropeMap";
 import MultiZoneLineChart from "../components/charts/MultiZoneLineChart";
-import DateRangePicker from "../components/DateRangePicker";
+import MaeHeatmap from "../components/charts/MaeHeatmap";
+import DataQualityHeatmap from "../components/charts/DataQualityHeatmap";
+
 import { MAP_ZONES, ZONE_COLORS, PROD_TYPE_COLOR, prodTypeLabel } from "../constants/zones";
 import { PriceResponse, LoadResponse, ProductionResponse } from "../services/api";
+import { fillAllSteps } from "../utils/gapFill";
 
 type Metric = "prices" | "load" | "production";
 
@@ -48,18 +51,6 @@ function totalGWh(mwValues: number[]): number | null {
 
 // ── time-series merging for comparison chart ───────────────────────────────────
 
-function mergeForecastPriceSeries(zoneData: Record<string, PriceResponse | null>): Record<string, unknown>[] {
-  const byTs = new Map<string, Record<string, unknown>>();
-  for (const [zone, d] of Object.entries(zoneData)) {
-    if (!d) continue;
-    for (const p of d.forecasts) {
-      if (!byTs.has(p.timestamp)) byTs.set(p.timestamp, { timestamp: p.timestamp });
-      byTs.get(p.timestamp)![zone] = Number(p.price_eur_mwh);
-    }
-  }
-  return Array.from(byTs.values()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
-}
-
 function mergePriceSeries(zoneData: Record<string, PriceResponse | null>): Record<string, unknown>[] {
   const byTs = new Map<string, Record<string, unknown>>();
   for (const [zone, d] of Object.entries(zoneData)) {
@@ -69,7 +60,10 @@ function mergePriceSeries(zoneData: Record<string, PriceResponse | null>): Recor
       byTs.get(p.timestamp)![zone] = Number(p.price_eur_mwh);
     }
   }
-  return Array.from(byTs.values()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  return fillAllSteps(
+    Array.from(byTs.values()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp))),
+    "timestamp",
+  );
 }
 
 function mergeLoadSeries(zoneData: Record<string, LoadResponse | null>): Record<string, unknown>[] {
@@ -81,7 +75,10 @@ function mergeLoadSeries(zoneData: Record<string, LoadResponse | null>): Record<
       byTs.get(p.timestamp)![zone] = Number(p.load_mw);
     }
   }
-  return Array.from(byTs.values()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  return fillAllSteps(
+    Array.from(byTs.values()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp))),
+    "timestamp",
+  );
 }
 
 function mergeProdSeries(zoneData: Record<string, ProductionResponse[] | null>): Record<string, unknown>[] {
@@ -99,7 +96,10 @@ function mergeProdSeries(zoneData: Record<string, ProductionResponse[] | null>):
       byTs.get(ts)![zone] = val;
     }
   }
-  return Array.from(byTs.values()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+  return fillAllSteps(
+    Array.from(byTs.values()).sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp))),
+    "timestamp",
+  );
 }
 
 // ── CSV export ─────────────────────────────────────────────────────────────────
@@ -158,28 +158,40 @@ function downloadCSV(
 // ── styles ─────────────────────────────────────────────────────────────────────
 
 const BTN: React.CSSProperties = {
-  background: "transparent", color: "#94a3b8", border: "1px solid #2d3748",
-  borderRadius: 6, padding: "6px 14px", fontSize: 13, cursor: "pointer",
+  background: "transparent",
+  color: "#6e6e73",
+  border: "none",
+  borderRadius: 20,
+  padding: "6px 16px",
+  fontSize: 13,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  transition: "color 0.15s, background 0.15s",
 };
-const BTN_ON: React.CSSProperties = { ...BTN, background: "#2d3748", color: "#e2e8f0" };
+const BTN_ON: React.CSSProperties = {
+  ...BTN,
+  background: "#fff",
+  color: "#1d1d1f",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.1), 0 1px 1px rgba(0,0,0,0.06)",
+};
 
 // ── component ──────────────────────────────────────────────────────────────────
 
-export default function MapPage() {
+interface Props {
+  startDate: Date;
+  endDate: Date;
+}
+
+export default function MapPage({ startDate, endDate }: Props) {
   const [metric, setMetric]           = useState<Metric>("prices");
   const [selectedZones, setSelectedZones] = useState<string[]>(["DE_LU", "FR"]);
-  const [startDate, setStartDate]     = useState(() => subDays(new Date(), 7));
-  const [endDate, setEndDate]         = useState(() => new Date());
 
   const startIso = startDate.toISOString();
   const endIso   = endDate.toISOString();
 
-  // ── Forecast price comparison: all data zones, last 7 days + 48h forward ──
-  const fcStart = useMemo(() => subDays(new Date(), 7).toISOString(), []);
-  const fcEnd   = useMemo(() => addHours(new Date(), 48).toISOString(), []);
-  const { data: allFcPrices, loading: lFcPrice } = useMultiZonePrices(DATA_ZONES, fcStart, fcEnd);
-  const forecastChartData = useMemo(() => mergeForecastPriceSeries(allFcPrices), [allFcPrices]);
-
+  // ── Data quality fetches: always fetch all three metrics for DATA_ZONES ─────
+  const { data: dqPrices, loading: dqLoadingP } = useMultiZonePrices(DATA_ZONES, startIso, endIso);
+  const { data: dqLoad,   loading: dqLoadingL } = useMultiZoneLoad(DATA_ZONES, startIso, endIso);
   // Fetch ALL map zones for the selected period → used for both map coloring and chart
   const { data: allPrices, loading: lPrice } = useMultiZonePrices(
     metric === "prices"     ? MAP_ZONES : [], startIso, endIso,
@@ -263,6 +275,47 @@ export default function MapPage() {
   const mapUnit   = metric === "prices" ? "€/MWh (avg)" : "GWh (total)";
   const chartUnit = metric === "prices" ? "€/MWh" : "MW";
 
+  // ── Normalized timestamps for data quality heatmap (all 3 metrics) ──────────
+  // Local date strings — compared by value, no timezone drift, reliable memo deps
+  const startDay = format(startDate, "yyyy-MM-dd");
+  const endDay   = format(endDate,   "yyyy-MM-dd");
+
+  const dqZones = useMemo(
+    () => selectedZones.length ? selectedZones.filter(z => DATA_ZONES.includes(z)) : DATA_ZONES,
+    [selectedZones],
+  );
+  const dqZonesKey = dqZones.join(",");
+
+  const dqPriceTs = useMemo(() => {
+    const out: Record<string, string[] | null> = {};
+    for (const z of dqZones) {
+      const d = dqPrices[z];
+      out[z] = d ? d.actuals.filter(p => p.price_eur_mwh != null).map(p => p.timestamp) : null;
+    }
+    return out;
+  }, [dqPrices, dqZonesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dqLoadTs = useMemo(() => {
+    const out: Record<string, string[] | null> = {};
+    for (const z of dqZones) {
+      const d = dqLoad[z];
+      out[z] = d ? d.actuals.filter(p => p.load_mw != null).map(p => p.timestamp) : null;
+    }
+    return out;
+  }, [dqLoad, dqZonesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dqProdTs = useMemo(() => {
+    const out: Record<string, string[] | null> = {};
+    for (const z of dqZones) {
+      const types = allProd[z];
+      if (!types) { out[z] = null; continue; }
+      const tsSet = new Set<string>();
+      for (const t of types) for (const p of t.actuals) if (p.value_mw != null) tsSet.add(p.timestamp);
+      out[z] = Array.from(tsSet).sort();
+    }
+    return out;
+  }, [allProd, dqZonesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── comparison chart data (filtered to selectedZones) ─────────────────────
   const chartData = useMemo(() => {
     if (metric === "prices") {
@@ -285,30 +338,47 @@ export default function MapPage() {
       prev.includes(zone) ? prev.filter(z => z !== zone) : [...prev, zone]
     );
 
+  const CARD: React.CSSProperties = {
+    background: "#fff",
+    border: "1px solid rgba(0,0,0,0.07)",
+    borderRadius: 14,
+    padding: "18px 16px",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.03)",
+  };
+  const SECTION_TITLE: React.CSSProperties = {
+    margin: 0, fontSize: 15, fontWeight: 600, color: "#1d1d1f", letterSpacing: "-0.3px",
+  };
+  const SECTION_SUB: React.CSSProperties = {
+    fontSize: 12, color: "#aeaeb2",
+  };
+
   return (
-    <div style={{ padding: "24px 32px", maxWidth: 1400, margin: "0 auto" }}>
+    <div style={{ padding: "32px 32px 24px", maxWidth: 1400, margin: "0 auto" }}>
 
       {/* Header + controls */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#e2e8f0" }}>Zone Comparison</h1>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600, color: "#1d1d1f", letterSpacing: "-0.5px" }}>Market Analytics</h1>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 4 }}>
+          <div style={{
+            display: "flex", gap: 2,
+            background: "rgba(0,0,0,0.06)",
+            borderRadius: 22, padding: 3,
+          }}>
             {(["prices", "load", "production"] as Metric[]).map(m => (
               <button key={m} style={metric === m ? BTN_ON : BTN} onClick={() => setMetric(m)}>
                 {m[0].toUpperCase() + m.slice(1)}
               </button>
             ))}
           </div>
-          <DateRangePicker
-            start={startDate}
-            end={endDate}
-            onChange={(s, e) => { setStartDate(s); setEndDate(e); }}
-          />
           <button
             style={{
               ...BTN,
-              opacity: anyLoading ? 0.5 : 1,
+              background: "#fff",
+              border: "1px solid rgba(0,0,0,0.1)",
+              borderRadius: 20,
+              opacity: anyLoading ? 0.4 : 1,
               cursor: anyLoading ? "not-allowed" : "pointer",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
             }}
             disabled={anyLoading}
             onClick={() => downloadCSV(metric, allPrices, allLoad, allProd, startDate, endDate)}
@@ -320,15 +390,15 @@ export default function MapPage() {
       </div>
 
       {/* Map + zone selector */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 20, marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 16, marginBottom: 24 }}>
 
         {/* Choropleth map */}
-        <div style={{ background: "#1a1f2e", border: "1px solid #2d3748", borderRadius: 8, padding: "14px 16px 10px" }}>
-          <p style={{ margin: "0 0 6px", fontSize: 12, color: "#94a3b8" }}>
+        <div style={{ ...CARD }}>
+          <p style={{ margin: "0 0 8px", fontSize: 12, color: "#aeaeb2" }}>
             {metric === "prices"
               ? `Average price over the period · ${mapUnit}`
               : `Total energy over the period · ${mapUnit}`}
-            {anyLoading && <span style={{ marginLeft: 8, color: "#4a5568" }}>· loading…</span>}
+            {anyLoading && <span style={{ marginLeft: 8 }}>· loading…</span>}
             {" · "}click a zone to compare
           </p>
           <EuropeMap
@@ -340,32 +410,32 @@ export default function MapPage() {
             productionMix={metric === "production" ? productionMix : null}
           />
           {/* Choropleth color legend */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 4px 2px" }}>
-            <span style={{ fontSize: 11, color: "#94a3b8", minWidth: 40, textAlign: "right" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "10px 4px 2px" }}>
+            <span style={{ fontSize: 11, color: "#aeaeb2", minWidth: 40, textAlign: "right" }}>
               {minVal.toFixed(1)}
             </span>
             <div style={{
-              flex: 1, height: 7, borderRadius: 4,
-              background: "linear-gradient(to right, #68d391, #f6e05e, #fc8181)",
+              flex: 1, height: 6, borderRadius: 3,
+              background: "linear-gradient(to right, #34c759, #ffcc00, #ff3b30)",
             }} />
-            <span style={{ fontSize: 11, color: "#94a3b8", minWidth: 70 }}>
+            <span style={{ fontSize: 11, color: "#aeaeb2", minWidth: 70 }}>
               {maxVal.toFixed(1)} {metric === "prices" ? "€/MWh" : "GWh"}
             </span>
           </div>
-          {/* Production-mix legend (shown only in Production mode) */}
+          {/* Production-mix legend */}
           {metric === "production" && activeProdTypes.length > 0 && (
             <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: "4px 12px" }}>
-              <span style={{ fontSize: 10, color: "#4a5568", width: "100%", marginBottom: 2 }}>
+              <span style={{ fontSize: 10, color: "#aeaeb2", width: "100%", marginBottom: 2 }}>
                 Production mix (donut charts)
-                {lProd && <span style={{ marginLeft: 6, color: "#4a5568" }}>· loading…</span>}
+                {lProd && <span style={{ marginLeft: 6 }}>· loading…</span>}
               </span>
               {activeProdTypes.map(type => (
                 <div key={type} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <div style={{
-                    width: 8, height: 8, borderRadius: "50%",
-                    background: PROD_TYPE_COLOR[type] ?? "#a0aec0", flexShrink: 0,
+                    width: 7, height: 7, borderRadius: "50%",
+                    background: PROD_TYPE_COLOR[type] ?? "#aeaeb2", flexShrink: 0,
                   }} />
-                  <span style={{ fontSize: 10, color: "#94a3b8" }}>{prodTypeLabel(type)}</span>
+                  <span style={{ fontSize: 10, color: "#6e6e73" }}>{prodTypeLabel(type)}</span>
                 </div>
               ))}
             </div>
@@ -373,33 +443,34 @@ export default function MapPage() {
         </div>
 
         {/* Zone list */}
-        <div style={{ background: "#1a1f2e", border: "1px solid #2d3748", borderRadius: 8, padding: 14 }}>
-          <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>Zones</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        <div style={{ ...CARD, padding: 14 }}>
+          <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 500, color: "#aeaeb2", textTransform: "uppercase", letterSpacing: "0.5px" }}>Zones</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {MAP_ZONES.map(zone => {
               const on  = selectedZones.includes(zone);
               const val = zoneValues[zone];
               const label = val != null
-                ? metric === "prices" ? `${val.toFixed(1)} €/MWh` : `${val.toFixed(0)} GWh`
+                ? metric === "prices" ? `${val.toFixed(1)} €` : `${val.toFixed(0)} GWh`
                 : "—";
               return (
                 <button
                   key={zone}
                   onClick={() => toggleZone(zone)}
                   style={{
-                    display: "flex", alignItems: "center", gap: 7,
-                    background: on ? "#2d3748" : "transparent",
-                    border: `1px solid ${on ? (ZONE_COLORS[zone] ?? "#63b3ed") : "#2d3748"}`,
-                    borderRadius: 6, padding: "5px 9px",
-                    cursor: "pointer", color: "#e2e8f0", fontSize: 12, textAlign: "left",
+                    display: "flex", alignItems: "center", gap: 8,
+                    background: on ? `${ZONE_COLORS[zone] ?? "#0071e3"}18` : "transparent",
+                    border: `1px solid ${on ? ((ZONE_COLORS[zone] ?? "#0071e3") + "44") : "rgba(0,0,0,0.06)"}`,
+                    borderRadius: 8, padding: "6px 10px",
+                    cursor: "pointer", color: on ? "#1d1d1f" : "#6e6e73", fontSize: 12, textAlign: "left",
+                    fontFamily: "inherit", transition: "all 0.15s",
                   }}
                 >
                   <div style={{
-                    width: 9, height: 9, borderRadius: 2,
-                    background: ZONE_COLORS[zone] ?? "#888", flexShrink: 0,
+                    width: 8, height: 8, borderRadius: 2,
+                    background: ZONE_COLORS[zone] ?? "#aeaeb2", flexShrink: 0,
                   }} />
                   <span style={{ flex: 1 }}>{zone}</span>
-                  <span style={{ fontSize: 11, color: "#94a3b8" }}>{label}</span>
+                  <span style={{ fontSize: 11, color: "#aeaeb2" }}>{label}</span>
                 </button>
               );
             })}
@@ -407,30 +478,14 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* Forecast price comparison: all zones, last 7 days + 48h forward */}
-      <div style={{ background: "#1a1f2e", border: "1px solid #2d3748", borderRadius: 8, padding: "20px 12px", marginBottom: 28 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16, paddingLeft: 8 }}>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#e2e8f0" }}>
-            Forecast Price Comparison · all zones
-          </h2>
-          <span style={{ fontSize: 12, color: "#4a5568" }}>LightGBM p50 · last 7 days hindcast + 48h forward</span>
-        </div>
-        <MultiZoneLineChart
-          data={forecastChartData}
-          zones={DATA_ZONES}
-          unit="€/MWh"
-          loading={lFcPrice}
-        />
-      </div>
-
-      {/* Comparison chart */}
+      {/* Comparison chart (time series) */}
       {selectedZones.length > 0 ? (
-        <div style={{ background: "#1a1f2e", border: "1px solid #2d3748", borderRadius: 8, padding: "20px 12px" }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16, paddingLeft: 8 }}>
-            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#e2e8f0" }}>
+        <div style={{ ...CARD, marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 16, paddingLeft: 4 }}>
+            <h2 style={SECTION_TITLE}>
               {metric === "prices" ? "Price" : metric === "load" ? "Load" : "Production"} · time series
             </h2>
-            <span style={{ fontSize: 12, color: "#4a5568" }}>
+            <span style={SECTION_SUB}>
               {selectedZones.join(" · ")} · {startDate.toLocaleDateString()} → {endDate.toLocaleDateString()}
             </span>
           </div>
@@ -442,10 +497,51 @@ export default function MapPage() {
           />
         </div>
       ) : (
-        <div style={{ textAlign: "center", padding: "48px 0", color: "#4a5568", fontSize: 13 }}>
+        <div style={{ textAlign: "center", padding: "48px 0", color: "#aeaeb2", fontSize: 13, marginBottom: 24 }}>
           Select at least one zone from the map or the list above.
         </div>
       )}
+
+      {/* Data quality heatmap */}
+      <div style={{ ...CARD, marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12, paddingLeft: 4 }}>
+          <h2 style={SECTION_TITLE}>Data Quality</h2>
+          <span style={SECTION_SUB}>
+            daily coverage · {startDay} → {endDay} · {dqZones.join(" · ")}
+          </span>
+        </div>
+        <DataQualityHeatmap
+          zoneData={metric === "prices" ? dqPriceTs : metric === "load" ? dqLoadTs : dqProdTs}
+          zones={dqZones}
+          startDay={startDay}
+          endDay={endDay}
+          loading={metric === "prices" ? dqLoadingP : metric === "load" ? dqLoadingL : lProd}
+        />
+      </div>
+
+      {/* Forecast accuracy heatmap */}
+      <div style={{ ...CARD }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 16, paddingLeft: 4 }}>
+          <h2 style={SECTION_TITLE}>Forecast Accuracy · MAE</h2>
+          <span style={SECTION_SUB}>
+            |actual − predicted| per slot ·{" "}
+            {selectedZones.length ? selectedZones.join(" · ") : "select zones above"}
+          </span>
+        </div>
+        {metric !== "production" ? (
+          <MaeHeatmap
+            zoneData={metric === "prices" ? dqPrices : dqLoad}
+            zones={selectedZones.length ? selectedZones : DATA_ZONES}
+            loading={metric === "prices" ? dqLoadingP : dqLoadingL}
+            valueField={metric === "prices" ? "price_eur_mwh" : "load_mw"}
+            unit={metric === "prices" ? "€/MWh" : "MW"}
+          />
+        ) : (
+          <div style={{ textAlign: "center", padding: "36px 0", color: "#aeaeb2", fontSize: 13 }}>
+            Forecast accuracy available for prices and load only.
+          </div>
+        )}
+      </div>
 
     </div>
   );
