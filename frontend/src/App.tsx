@@ -6,9 +6,12 @@ import LiveBadge from "./components/LiveBadge";
 import ChatWidget from "./components/ChatWidget";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useState, useCallback } from "react";
+import { subDays } from "date-fns";
 
 export default function App() {
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState(() => subDays(new Date(), 7));
+  const [endDate, setEndDate]     = useState(() => new Date());
 
   const onMessage = useCallback((msg: { domain: string; zone: string }) => {
     setLastUpdate(`${msg.domain} · ${msg.zone}`);
@@ -56,8 +59,8 @@ export default function App() {
         </header>
 
         <Routes>
-          <Route path="/"          element={<MainPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/"          element={<MainPage startDate={startDate} endDate={endDate} onChange={(s,e)=>{setStartDate(s);setEndDate(e);}} />} />
+          <Route path="/analytics" element={<AnalyticsPage startDate={startDate} endDate={endDate} onChange={(s,e)=>{setStartDate(s);setEndDate(e);}} />} />
           <Route path="/docs"      element={<DocsPage />} />
         </Routes>
 

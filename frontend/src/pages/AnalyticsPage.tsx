@@ -1,12 +1,13 @@
-import { useState } from "react";
-import { subDays } from "date-fns";
 import MapPage from "./MapPage";
 import DateRangePicker from "../components/DateRangePicker";
 
-export default function AnalyticsPage() {
-  const [startDate, setStartDate] = useState(() => subDays(new Date(), 7));
-  const [endDate, setEndDate]     = useState(() => new Date());
+interface Props {
+  startDate: Date;
+  endDate: Date;
+  onChange: (start: Date, end: Date) => void;
+}
 
+export default function AnalyticsPage({ startDate, endDate, onChange }: Props) {
   return (
     <>
       <div style={{
@@ -19,11 +20,7 @@ export default function AnalyticsPage() {
         <span style={{ fontSize: 11, fontWeight: 500, color: "#aeaeb2", letterSpacing: "0.5px", textTransform: "uppercase" }}>
           Period
         </span>
-        <DateRangePicker
-          start={startDate}
-          end={endDate}
-          onChange={(s, e) => { setStartDate(s); setEndDate(e); }}
-        />
+        <DateRangePicker start={startDate} end={endDate} onChange={onChange} />
       </div>
 
       <MapPage startDate={startDate} endDate={endDate} />
