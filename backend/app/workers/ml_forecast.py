@@ -158,7 +158,9 @@ def _forecast_load(zone: str):
         return
     model = train(df)
     _try_persist_model("load", zone, model, f"models/load/{zone}/{uuid.uuid4()}.pkl")
-    _write_load_forecasts(zone, generate_forecast(model, settings.forecast_horizon_hours))
+    hindcast = generate_hindcast(model, n_days=7)
+    forward  = generate_forecast(model, settings.forecast_horizon_hours)
+    _write_load_forecasts(zone, pd.concat([hindcast, forward], ignore_index=True))
 
 
 def _forecast_production(zone: str, prod_type: str):

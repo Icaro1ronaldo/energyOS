@@ -124,6 +124,20 @@ export default function DashboardPage({ startDate, endDate }: Props) {
     [priceAccActuals, pricePastFc],
   );
 
+  // ── Load MAE: hindcast rows (past, is_forecast=true) vs actuals ───────────
+  const loadPastFc = useMemo(
+    () => load?.forecasts.filter((p) => p.timestamp <= ref.nowIso && p.timestamp >= ref.past2d) ?? [],
+    [load, ref],
+  );
+  const loadAccActuals = useMemo(
+    () => load?.actuals.filter((p) => p.timestamp >= ref.past2d) ?? [],
+    [load, ref],
+  );
+  const loadMAE = useMemo(
+    () => computeMAE(loadAccActuals, loadPastFc, "load_mw"),
+    [loadAccActuals, loadPastFc],
+  );
+
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ padding: "32px 32px 24px", maxWidth: 1400, margin: "0 auto" }}>
@@ -192,7 +206,7 @@ export default function DashboardPage({ startDate, endDate }: Props) {
       <Section title="Energy Load" sub={`${startDate.toLocaleDateString()} → ${endDate.toLocaleDateString()} · ${zone}`}>
         {lSt === "loading" && <Empty text="Loading…" />}
         {lSt === "error" && <Empty text="Failed to load load data." />}
-        {load && <LoadChart actuals={load.actuals} forecasts={load.forecasts} startTs={startIso} endTs={endIso} />}
+        {load && <LoadChart actuals={load.actuals} forecasts={load.forecasts} mae={loadMAE} startTs={startIso} endTs={endIso} />}
       </Section>
 
       {/* Generation mix */}
