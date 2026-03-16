@@ -113,7 +113,11 @@ def generate_forecast(model: LGBMForecast, horizon_hours: int) -> pd.DataFrame:
     last_ts = history["ds"].iloc[-1]
     y_buf = list(history["y"].values)  # extend as we predict
 
-    future_ts = [last_ts + pd.Timedelta(hours=h) for h in range(1, horizon_hours + 1)]
+    # Step at the data's own resolution so forecast timestamps align with
+    # actuals (e.g. 15-min for loads, hourly for prices).
+    step = (history["ds"].iloc[-1] - history["ds"].iloc[-2]) if len(history) >= 2 else pd.Timedelta(hours=1)
+    n_steps = max(1, round(horizon_hours * 3600 / step.total_seconds()))
+    future_ts = [last_ts + step * h for h in range(1, n_steps + 1)]
     yhats, lowers, uppers = [], [], []
 
     for ts in future_ts:

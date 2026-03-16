@@ -162,9 +162,9 @@ export default function LoadChart({ actuals, forecasts, mae, startTs, endTs }: P
           {gaps.map(g => (
             <ReferenceArea key={g.x1} x1={g.x1} x2={g.x2} fill="rgba(120,120,128,0.10)" strokeOpacity={0} />
           ))}
-          <Area dataKey="actual" stroke="#30d158" fill="rgba(48,209,88,0.12)" strokeWidth={2} name="Actual" connectNulls={false} />
-          <Line dataKey="hindcast" dot={false} stroke="#0071e3" strokeWidth={1.5} strokeDasharray="4 2" name="Predicted (7d)" connectNulls={false} />
-          <Line dataKey="forecast" dot={false} stroke="#ff9f0a" strokeWidth={2} strokeDasharray="6 3" name="Forecast" connectNulls={false} />
+          <Area dataKey="actual" stroke="#30d158" fill="rgba(48,209,88,0.12)" strokeWidth={2} name="Actual" connectNulls />
+          <Line dataKey="hindcast" dot={false} stroke="#0071e3" strokeWidth={1.5} strokeDasharray="4 2" name="Predicted (7d)" connectNulls />
+          <Line dataKey="forecast" dot={false} stroke="#ff9f0a" strokeWidth={2} strokeDasharray="6 3" name="Forecast" connectNulls />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

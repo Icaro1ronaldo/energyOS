@@ -194,9 +194,9 @@ export default function PriceChart({ actuals, forecasts, mae, startTs, endTs }: 
             name="p10–p90 band"
             legendType="square"
           />
-          <Line dataKey="actual"   dot={false} stroke="#0071e3" strokeWidth={2}                         name="Actual" />
-          <Line dataKey="hindcast" dot={false} stroke="#30d158" strokeWidth={1.5} strokeDasharray="4 2" name="Predicted (7d)" />
-          <Line dataKey="forecast" dot={false} stroke="#ff9f0a" strokeWidth={2}   strokeDasharray="6 3" name="Forecast p50" />
+          <Line dataKey="actual"   dot={false} stroke="#0071e3" strokeWidth={2}                         name="Actual"         connectNulls />
+          <Line dataKey="hindcast" dot={false} stroke="#30d158" strokeWidth={1.5} strokeDasharray="4 2" name="Predicted (7d)"  connectNulls />
+          <Line dataKey="forecast" dot={false} stroke="#ff9f0a" strokeWidth={2}   strokeDasharray="6 3" name="Forecast p50"    connectNulls />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
