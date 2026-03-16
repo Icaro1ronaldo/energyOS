@@ -27,6 +27,47 @@ function computeMAE(
   return count > 0 ? (sum / count).toFixed(2) : null;
 }
 
+/** True if the timestamps in `points` span at least 7 days. */
+function spans7Days(points: { timestamp: string }[]): boolean {
+  if (points.length < 2) return false;
+  const sorted = points.map((p) => p.timestamp).sort();
+  return (
+    new Date(sorted.at(-1)!).getTime() - new Date(sorted[0]).getTime() >=
+    7 * 24 * 60 * 60 * 1000
+  );
+}
+
+/**
+ * Return the [windowStart, windowEnd] to use for MAE computation.
+ *
+ * If both actuals and forecasts together span ≥ 7 days, use the last-48h
+ * window [past2d, nowIso]. Otherwise find the calendar day (UTC) that has
+ * the most combined data points and return that day's [00:00Z, 23:59:59Z].
+ */
+function accuracyWindow(
+  actuals: { timestamp: string }[],
+  forecasts: { timestamp: string }[],
+  nowIso: string,
+  past2d: string,
+): { start: string; end: string } {
+  const combined = [...actuals, ...forecasts];
+  if (spans7Days(combined)) return { start: past2d, end: nowIso };
+
+  // Count data points per calendar day across both series
+  const counts = new Map<string, number>();
+  for (const p of combined) {
+    const day = p.timestamp.slice(0, 10);
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+  if (!counts.size) return { start: past2d, end: nowIso };
+
+  const bestDay = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  return {
+    start: `${bestDay}T00:00:00.000Z`,
+    end: `${bestDay}T23:59:59.999Z`,
+  };
+}
+
 function Section({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 28 }}>
@@ -111,13 +152,23 @@ export default function DashboardPage({ startDate, endDate }: Props) {
   }, [latestPrice, prices, ref.now]);
 
   // ── Price MAE: hindcast rows (past, is_forecast=true) vs actuals ──────────
-  const pricePastFc = useMemo<PricePoint[]>(
-    () => prices?.forecasts.filter((p) => p.timestamp <= ref.nowIso && p.timestamp >= ref.past2d) ?? [],
+  const priceAccWindow = useMemo(
+    () => accuracyWindow(prices?.actuals ?? [], prices?.forecasts ?? [], ref.nowIso, ref.past2d),
     [prices, ref],
   );
+  const pricePastFc = useMemo<PricePoint[]>(
+    () =>
+      prices?.forecasts.filter(
+        (p) => p.timestamp <= priceAccWindow.end && p.timestamp >= priceAccWindow.start,
+      ) ?? [],
+    [prices, priceAccWindow],
+  );
   const priceAccActuals = useMemo<PricePoint[]>(
-    () => prices?.actuals.filter((p) => p.timestamp >= ref.past2d) ?? [],
-    [prices, ref],
+    () =>
+      prices?.actuals.filter(
+        (p) => p.timestamp >= priceAccWindow.start && p.timestamp <= priceAccWindow.end,
+      ) ?? [],
+    [prices, priceAccWindow],
   );
   const priceMAE = useMemo(
     () => computeMAE(priceAccActuals, pricePastFc, "price_eur_mwh"),
@@ -125,13 +176,23 @@ export default function DashboardPage({ startDate, endDate }: Props) {
   );
 
   // ── Load MAE: hindcast rows (past, is_forecast=true) vs actuals ───────────
-  const loadPastFc = useMemo(
-    () => load?.forecasts.filter((p) => p.timestamp <= ref.nowIso && p.timestamp >= ref.past2d) ?? [],
+  const loadAccWindow = useMemo(
+    () => accuracyWindow(load?.actuals ?? [], load?.forecasts ?? [], ref.nowIso, ref.past2d),
     [load, ref],
   );
+  const loadPastFc = useMemo(
+    () =>
+      load?.forecasts.filter(
+        (p) => p.timestamp <= loadAccWindow.end && p.timestamp >= loadAccWindow.start,
+      ) ?? [],
+    [load, loadAccWindow],
+  );
   const loadAccActuals = useMemo(
-    () => load?.actuals.filter((p) => p.timestamp >= ref.past2d) ?? [],
-    [load, ref],
+    () =>
+      load?.actuals.filter(
+        (p) => p.timestamp >= loadAccWindow.start && p.timestamp <= loadAccWindow.end,
+      ) ?? [],
+    [load, loadAccWindow],
   );
   const loadMAE = useMemo(
     () => computeMAE(loadAccActuals, loadPastFc, "load_mw"),
