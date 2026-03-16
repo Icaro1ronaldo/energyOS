@@ -27,45 +27,65 @@ function computeMAE(
   return count > 0 ? (sum / count).toFixed(2) : null;
 }
 
-/** True if the timestamps in `points` span at least 7 days. */
-function spans7Days(points: { timestamp: string }[]): boolean {
-  if (points.length < 2) return false;
-  const sorted = points.map((p) => p.timestamp).sort();
-  return (
-    new Date(sorted.at(-1)!).getTime() - new Date(sorted[0]).getTime() >=
-    7 * 24 * 60 * 60 * 1000
-  );
-}
+const D7_MS = 7 * 24 * 60 * 60 * 1000;
+const D2_MS = 2 * 24 * 60 * 60 * 1000;
 
 /**
  * Return the [windowStart, windowEnd] to use for MAE computation.
  *
- * If both actuals and forecasts together span ≥ 7 days, use the last-48h
- * window [past2d, nowIso]. Otherwise find the calendar day (UTC) that has
- * the most combined data points and return that day's [00:00Z, 23:59:59Z].
+ * Strategy:
+ * 1. Find lastActual = the most recent actual timestamp (not "now" — actuals
+ *    may lag by hours or days behind wall-clock time).
+ * 2. If actuals span ≥ 7 days ending at lastActual → the ML model had enough
+ *    data to train. Use the last 48 h of actuals as the comparison window
+ *    (i.e. [lastActual − 48 h, lastActual]).
+ * 3. If actuals span < 7 days → not enough training data yet. Fall back to the
+ *    calendar day (UTC) that has the most overlapping actual + forecast points,
+ *    so the heatmap/MAE badge shows something rather than nothing.
  */
 function accuracyWindow(
   actuals: { timestamp: string }[],
   forecasts: { timestamp: string }[],
   nowIso: string,
-  past2d: string,
 ): { start: string; end: string } {
-  const combined = [...actuals, ...forecasts];
-  if (spans7Days(combined)) return { start: past2d, end: nowIso };
+  // Past actuals only (exclude any future-stamped rows)
+  const pastActualTs = actuals
+    .map((p) => p.timestamp)
+    .filter((ts) => ts <= nowIso)
+    .sort();
 
-  // Count data points per calendar day across both series
+  if (!pastActualTs.length) {
+    // No actuals at all — fall back to best day in forecasts
+    return bestDayWindow([], forecasts) ?? { start: nowIso, end: nowIso };
+  }
+
+  const lastActual = pastActualTs.at(-1)!;
+  const lastActualMs = new Date(lastActual).getTime();
+  const firstActualMs = new Date(pastActualTs[0]).getTime();
+
+  if (lastActualMs - firstActualMs >= D7_MS) {
+    // ≥ 7 days of actuals: anchor the 48 h window at lastActual
+    const windowStart = new Date(lastActualMs - D2_MS).toISOString();
+    return { start: windowStart, end: lastActual };
+  }
+
+  // < 7 days: find calendar day with most actual+forecast overlap
+  return bestDayWindow(actuals, forecasts) ?? { start: pastActualTs[0], end: lastActual };
+}
+
+/** Calendar day (UTC) with the most combined actual + forecast data points. */
+function bestDayWindow(
+  actuals: { timestamp: string }[],
+  forecasts: { timestamp: string }[],
+): { start: string; end: string } | null {
   const counts = new Map<string, number>();
-  for (const p of combined) {
+  for (const p of [...actuals, ...forecasts]) {
     const day = p.timestamp.slice(0, 10);
     counts.set(day, (counts.get(day) ?? 0) + 1);
   }
-  if (!counts.size) return { start: past2d, end: nowIso };
-
+  if (!counts.size) return null;
   const bestDay = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  return {
-    start: `${bestDay}T00:00:00.000Z`,
-    end: `${bestDay}T23:59:59.999Z`,
-  };
+  return { start: `${bestDay}T00:00:00.000Z`, end: `${bestDay}T23:59:59.999Z` };
 }
 
 function Section({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
@@ -106,7 +126,6 @@ export default function DashboardPage({ startDate, endDate }: Props) {
   const ref = useMemo(() => ({
     now: nowRef,
     nowIso: nowRef.toISOString(),
-    past2d: subHours(nowRef, 48).toISOString(),
     future48h: addHours(nowRef, 48).toISOString(),
   }), [nowRef]);
 
@@ -153,7 +172,7 @@ export default function DashboardPage({ startDate, endDate }: Props) {
 
   // ── Price MAE: hindcast rows (past, is_forecast=true) vs actuals ──────────
   const priceAccWindow = useMemo(
-    () => accuracyWindow(prices?.actuals ?? [], prices?.forecasts ?? [], ref.nowIso, ref.past2d),
+    () => accuracyWindow(prices?.actuals ?? [], prices?.forecasts ?? [], ref.nowIso),
     [prices, ref],
   );
   const pricePastFc = useMemo<PricePoint[]>(
@@ -177,7 +196,7 @@ export default function DashboardPage({ startDate, endDate }: Props) {
 
   // ── Load MAE: hindcast rows (past, is_forecast=true) vs actuals ───────────
   const loadAccWindow = useMemo(
-    () => accuracyWindow(load?.actuals ?? [], load?.forecasts ?? [], ref.nowIso, ref.past2d),
+    () => accuracyWindow(load?.actuals ?? [], load?.forecasts ?? [], ref.nowIso),
     [load, ref],
   );
   const loadPastFc = useMemo(
