@@ -5,6 +5,7 @@ import KpiCard from "../components/KpiCard";
 import PriceChart from "../components/charts/PriceChart";
 import LoadChart from "../components/charts/LoadChart";
 import ProductionChart from "../components/charts/ProductionChart";
+import GenerationMixPie from "../components/charts/GenerationMixPie";
 import { PricePoint } from "../services/api";
 
 const ZONES = ["DE_LU", "FR", "ES", "PT", "NL", "BE"];
@@ -307,6 +308,14 @@ export default function DashboardPage({ startDate, endDate }: Props) {
         {prodSt === "loading" && <Empty text="Loading…" />}
         {prodSt === "error" && <Empty text="Failed to load production data." />}
         {production && production.length > 0 && <ProductionChart data={production} startTs={startIso} endTs={endIso} />}
+        {production && production.length > 0 && (
+          <>
+            <div style={{ height: 1, background: "rgba(0,0,0,0.06)", margin: "20px 0" }} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#1d1d1f", marginBottom: 4 }}>Energy Mix</div>
+            <div style={{ fontSize: 11, color: "#aeaeb2", marginBottom: 2 }}>Share of total generation (MWh) · 15-min resolution</div>
+            <GenerationMixPie data={production} startTs={startIso} endTs={endIso} />
+          </>
+        )}
         {production && production.length === 0 && <Empty text="No production data available." />}
       </Section>
 
