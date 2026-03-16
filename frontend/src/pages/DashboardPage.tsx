@@ -1,11 +1,11 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { addHours, subHours, subDays } from "date-fns";
 import { usePrices, useLoad, useProduction } from "../hooks/useEnergyData";
 import KpiCard from "../components/KpiCard";
 import PriceChart from "../components/charts/PriceChart";
 import LoadChart from "../components/charts/LoadChart";
 import ProductionChart from "../components/charts/ProductionChart";
-import { PricePoint, energyApi } from "../services/api";
+import { PricePoint } from "../services/api";
 
 const ZONES = ["DE_LU", "FR", "ES", "PT", "NL", "BE"];
 
@@ -122,21 +122,6 @@ interface Props {
 export default function DashboardPage({ startDate, endDate }: Props) {
   const nowRef = useState(() => new Date())[0];
   const [zone, setZone] = useState("DE_LU");
-  const [forecastRunning, setForecastRunning] = useState(false);
-  const [forecastMsg, setForecastMsg] = useState<string | null>(null);
-
-  const runForecast = useCallback(async () => {
-    setForecastRunning(true);
-    setForecastMsg(null);
-    try {
-      await energyApi.runForecast();
-      setForecastMsg("Forecast job started — data will refresh in ~1–2 min.");
-    } catch {
-      setForecastMsg("Failed to start forecast job.");
-    } finally {
-      setForecastRunning(false);
-    }
-  }, []);
 
   const ref = useMemo(() => ({
     now: nowRef,
@@ -271,30 +256,6 @@ export default function DashboardPage({ startDate, endDate }: Props) {
         >
           {ZONES.map((z) => <option key={z}>{z}</option>)}
         </select>
-
-        <button
-          onClick={runForecast}
-          disabled={forecastRunning}
-          style={{
-            background: forecastRunning ? "rgba(0,113,227,0.5)" : "#0071e3",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "7px 16px",
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: forecastRunning ? "default" : "pointer",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-          }}
-        >
-          {forecastRunning ? "Running…" : "Run Forecast"}
-        </button>
-
-        {forecastMsg && (
-          <span style={{ fontSize: 12, color: forecastMsg.startsWith("Failed") ? "#ff453a" : "#30d158" }}>
-            {forecastMsg}
-          </span>
-        )}
       </div>
 
       {/* KPI row */}

@@ -182,7 +182,10 @@ def _forecast_prices(zone: str):
     _try_persist_model("prices", zone, model, f"models/prices/{zone}/{uuid.uuid4()}.pkl")
     n_days   = _price_hindcast_days(zone)
     hindcast = generate_hindcast(model, n_days=n_days)
-    forward  = generate_forecast(model, settings.forecast_horizon_hours)
+    # Anchor the forward forecast at the load last-actual so both charts
+    # show the forecast window starting from the same date (e.g. Mar 5).
+    load_ts  = _last_actual_ts(EnergyLoad, zone)
+    forward  = generate_forecast(model, settings.forecast_horizon_hours, anchor_ts=load_ts)
     _write_price_forecasts(zone, pd.concat([hindcast, forward], ignore_index=True))
 
 

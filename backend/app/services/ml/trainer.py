@@ -100,21 +100,34 @@ def generate_hindcast(model: LGBMForecast, n_days: int = 7) -> pd.DataFrame:
     })
 
 
-def generate_forecast(model: LGBMForecast, horizon_hours: int) -> pd.DataFrame:
+def generate_forecast(model: LGBMForecast, horizon_hours: int, anchor_ts=None) -> pd.DataFrame:
     """
     Generate a forward-looking forecast for the next horizon_hours using
     recursive lag filling so each step uses the previous p50 prediction.
 
+    anchor_ts: if provided, truncate history to this timestamp before
+               computing lags. Used to anchor the price forward forecast
+               at the load last-actual date rather than the price last-actual.
+
     Returns:
         DataFrame with columns: ds, yhat, yhat_lower, yhat_upper.
     """
-    # Keep a rolling numpy buffer of the last 200 values for fast lag access
     history = model.last_known.copy()
+
+    if anchor_ts is not None:
+        ts = pd.Timestamp(anchor_ts)
+        # Match timezone-awareness of history["ds"]
+        if history["ds"].dt.tz is None:
+            ts = ts.tz_convert(None) if ts.tzinfo else ts
+        history = history[history["ds"] <= ts]
+        if history.empty:
+            return pd.DataFrame(columns=["ds", "yhat", "yhat_lower", "yhat_upper"])
+
     last_ts = history["ds"].iloc[-1]
     y_buf = list(history["y"].values)  # extend as we predict
 
     # Step at the data's own resolution so forecast timestamps align with
-    # actuals (e.g. 15-min for loads, hourly for prices).
+    # actuals (e.g. 15-min for loads, 15-min for prices).
     step = (history["ds"].iloc[-1] - history["ds"].iloc[-2]) if len(history) >= 2 else pd.Timedelta(hours=1)
     n_steps = max(1, round(horizon_hours * 3600 / step.total_seconds()))
     future_ts = [last_ts + step * h for h in range(1, n_steps + 1)]
