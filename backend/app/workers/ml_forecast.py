@@ -1,4 +1,5 @@
 import uuid
+import datetime
 import pandas as pd
 from .celery_app import app
 from ..core.config import settings
@@ -9,6 +10,38 @@ from ..models.energy_production import EnergyProduction, PRODUCTION_TYPES
 from ..services.ml.trainer import train, generate_forecast, generate_hindcast
 from ..services.ml.registry import register_model
 from ..services import s3 as s3_svc
+
+
+def _last_actual_ts(model_class, zone: str):
+    """Return the latest non-forecast timestamp for a zone, or None."""
+    with SyncSessionLocal() as db:
+        row = (
+            db.query(model_class.timestamp)
+            .filter(model_class.bidding_zone == zone, ~model_class.is_forecast)
+            .order_by(model_class.timestamp.desc())
+            .first()
+        )
+    return row[0] if row else None
+
+
+def _price_hindcast_days(zone: str) -> int:
+    """
+    Compute how many hindcast days to generate for prices so the window
+    always covers 7 days before the load last-actual date.
+
+    Example: price ends Mar 16, load ends Mar 5 → gap = 11 days.
+    Return 7 + 11 = 18 so the price hindcast starts Feb 26 — the same
+    start date as the 7-day load hindcast.  Both charts align at Mar 5.
+    """
+    price_ts = _last_actual_ts(EnergyPrice, zone)
+    load_ts  = _last_actual_ts(EnergyLoad, zone)
+    if price_ts is None or load_ts is None:
+        return 7
+    # Make timezone-naive for subtraction if needed
+    def _naive(ts):
+        return ts.replace(tzinfo=None) if isinstance(ts, datetime.datetime) and ts.tzinfo else ts
+    gap_days = max(0, (_naive(price_ts) - _naive(load_ts)).days)
+    return 7 + gap_days
 
 
 @app.task(name="app.workers.ml_forecast.run_all_forecasts")
@@ -147,7 +180,8 @@ def _forecast_prices(zone: str):
         return
     model = train(df)
     _try_persist_model("prices", zone, model, f"models/prices/{zone}/{uuid.uuid4()}.pkl")
-    hindcast = generate_hindcast(model, n_days=7)
+    n_days   = _price_hindcast_days(zone)
+    hindcast = generate_hindcast(model, n_days=n_days)
     forward  = generate_forecast(model, settings.forecast_horizon_hours)
     _write_price_forecasts(zone, pd.concat([hindcast, forward], ignore_index=True))
 
