@@ -31,12 +31,14 @@ export interface ProductionPoint {
 export interface PriceResponse {
   zone: string;
   actuals: PricePoint[];
+  hindcasts: PricePoint[];
   forecasts: PricePoint[];
 }
 
 export interface LoadResponse {
   zone: string;
   actuals: LoadPoint[];
+  hindcasts: LoadPoint[];
   forecasts: LoadPoint[];
 }
 

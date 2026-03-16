@@ -45,7 +45,7 @@ export default function LoadPage() {
           <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 16 }}>
             {startDate.toLocaleDateString()} → {endDate.toLocaleDateString()} · zone <strong>{zone}</strong>
           </p>
-          <LoadChart actuals={data.actuals} forecasts={data.forecasts} />
+          <LoadChart actuals={data.actuals} hindcasts={data.hindcasts} forecasts={data.forecasts} />
         </>
       )}
     </div>

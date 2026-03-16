@@ -45,7 +45,7 @@ export default function PricesPage() {
           <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 16 }}>
             {startDate.toLocaleDateString()} → {endDate.toLocaleDateString()} · zone <strong>{zone}</strong>
           </p>
-          <PriceChart actuals={data.actuals} forecasts={data.forecasts} />
+          <PriceChart actuals={data.actuals} hindcasts={data.hindcasts} forecasts={data.forecasts} />
         </>
       )}
     </div>

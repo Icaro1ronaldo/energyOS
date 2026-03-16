@@ -16,4 +16,5 @@ class PricePoint(BaseModel):
 class PriceResponse(BaseModel):
     zone: str
     actuals: list[PricePoint]
+    hindcasts: list[PricePoint]
     forecasts: list[PricePoint]

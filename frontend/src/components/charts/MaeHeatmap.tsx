@@ -18,6 +18,7 @@ interface TooltipState {
 
 type ZoneEntry = {
   actuals:   { timestamp: string }[];
+  hindcasts: { timestamp: string }[];
   forecasts: { timestamp: string }[];
 } | null;
 
@@ -91,14 +92,13 @@ export default function MaeHeatmap({ zoneData, zones, loading, valueField = "pri
         actualTsSet.add(ts);
       }
 
-      const lastActualTs = Array.from(actualTsSet).sort().at(-1) ?? "";
       grid[zone] = new Map();
 
-      for (const p of d.forecasts) {
+      // Use hindcast rows (pre-split at anchor date) — they already exclude forward forecasts
+      for (const p of d.hindcasts) {
         const rec = p as Record<string, unknown>;
         if (rec[valueField] == null) continue;
         const ts = nts(p.timestamp);
-        if (ts > lastActualTs) continue;
         const actual = actualMap.get(ts);
         if (actual == null) continue;
         const predicted = Number(rec[valueField]);

@@ -8,13 +8,14 @@ import { fillAllSteps, collectGaps } from "../../utils/gapFill";
 
 interface Props {
   actuals: LoadPoint[];
+  hindcasts: LoadPoint[];
   forecasts: LoadPoint[];
   mae?: string | null;
   startTs?: string;
   endTs?: string;
 }
 
-interface Row {
+interface Row extends Record<string, unknown> {
   ts: string;
   actual?: number;
   hindcast?: number;
@@ -77,32 +78,34 @@ function LoadTooltip({ active, payload }: any) {
   );
 }
 
-export default function LoadChart({ actuals, forecasts, mae, startTs, endTs }: Props) {
-  const now = new Date().toISOString();
-
-  const actualTsSet = new Set<string>();
+export default function LoadChart({ actuals, hindcasts, forecasts, mae, startTs, endTs }: Props) {
   const map = new Map<string, Row>();
 
+  // Actuals
   for (const p of actuals) {
     if (p.load_mw == null) continue;
     const ts = nts(p.timestamp);
-    actualTsSet.add(ts);
     map.set(ts, { ts, actual: Number(p.load_mw) });
   }
 
-  const lastActualTs = Array.from(actualTsSet).sort().at(-1) ?? now;
+  // Hindcast rows (in-sample predictions ending at anchor date)
+  for (const p of hindcasts) {
+    if (p.load_mw == null) continue;
+    const ts = nts(p.timestamp);
+    const existing = map.get(ts) ?? { ts };
+    map.set(ts, { ...existing, hindcast: Number(p.load_mw) });
+  }
+
+  // Forward forecast rows (after anchor date)
+  const lastHindcastTs = hindcasts.length
+    ? nts(hindcasts[hindcasts.length - 1].timestamp)
+    : null;
 
   for (const p of forecasts) {
     if (p.load_mw == null) continue;
     const ts = nts(p.timestamp);
     const existing = map.get(ts) ?? { ts };
-    const isHindcast = actualTsSet.has(ts) || ts <= lastActualTs;
-
-    if (isHindcast) {
-      map.set(ts, { ...existing, hindcast: Number(p.load_mw) });
-    } else {
-      map.set(ts, { ...existing, forecast: Number(p.load_mw) });
-    }
+    map.set(ts, { ...existing, forecast: Number(p.load_mw) });
   }
 
   const rawSorted = Array.from(map.values()).sort((a, b) => a.ts.localeCompare(b.ts));
@@ -117,8 +120,11 @@ export default function LoadChart({ actuals, forecasts, mae, startTs, endTs }: P
   const data = fillAllSteps(rawSorted, "ts");
   const gaps = collectGaps(data, "ts");
 
-  const hasHindcast = data.some(r => (r as Row).hindcast != null);
-  const hasForecast = data.some(r => (r as Row).forecast != null);
+  const hasHindcast = data.some(r => r.hindcast != null);
+  const hasForecast = data.some(r => r.forecast != null);
+
+  // "now" line = last hindcast ts (= anchor date, e.g. Mar 5)
+  const nowLine = lastHindcastTs ?? new Date().toISOString();
 
   const badge: React.CSSProperties = {
     background: "rgba(0,0,0,0.04)",
@@ -154,7 +160,7 @@ export default function LoadChart({ actuals, forecasts, mae, startTs, endTs }: P
           <Tooltip content={<LoadTooltip />} />
           <Legend wrapperStyle={{ fontSize: 12, color: "#6e6e73" }} />
           <ReferenceLine
-            x={lastActualTs}
+            x={nowLine}
             stroke="rgba(0,0,0,0.2)"
             strokeDasharray="4 3"
             label={{ value: "now", fill: "#aeaeb2", fontSize: 10 }}

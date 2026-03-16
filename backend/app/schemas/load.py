@@ -14,4 +14,5 @@ class LoadPoint(BaseModel):
 class LoadResponse(BaseModel):
     zone: str
     actuals: list[LoadPoint]
+    hindcasts: list[LoadPoint]
     forecasts: list[LoadPoint]

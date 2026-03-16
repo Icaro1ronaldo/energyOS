@@ -8,13 +8,14 @@ import { fillAllSteps, collectGaps } from "../../utils/gapFill";
 
 interface Props {
   actuals: PricePoint[];
+  hindcasts: PricePoint[];
   forecasts: PricePoint[];
   mae?: string | null;
   startTs?: string;
   endTs?: string;
 }
 
-interface Row {
+interface Row extends Record<string, unknown> {
   ts: string;
   actual?: number;
   hindcast?: number;
@@ -92,38 +93,41 @@ function PriceTooltip({ active, payload, label }: any) {
   );
 }
 
-export default function PriceChart({ actuals, forecasts, mae, startTs, endTs }: Props) {
+export default function PriceChart({ actuals, hindcasts, forecasts, mae, startTs, endTs }: Props) {
   const map = new Map<string, Row>();
 
-  const actualTsSet = new Set<string>();
+  // Actuals
   for (const p of actuals) {
     if (p.price_eur_mwh == null) continue;
     const ts = nts(p.timestamp);
-    actualTsSet.add(ts);
     map.set(ts, { ts, actual: Number(p.price_eur_mwh) });
   }
 
-  const sortedActualTs = Array.from(actualTsSet).sort();
-  const lastActualTs   = sortedActualTs.at(-1) ?? new Date().toISOString();
+  // Hindcast rows (in-sample predictions ending at anchor date)
+  for (const p of hindcasts) {
+    if (p.price_eur_mwh == null) continue;
+    const ts = nts(p.timestamp);
+    const existing = map.get(ts) ?? { ts };
+    map.set(ts, { ...existing, hindcast: Number(p.price_eur_mwh) });
+  }
+
+  // Forward forecast rows (after anchor date, with confidence bands)
+  const lastHindcastTs = hindcasts.length
+    ? nts(hindcasts[hindcasts.length - 1].timestamp)
+    : null;
 
   for (const p of forecasts) {
     if (p.price_eur_mwh == null) continue;
-    const ts       = nts(p.timestamp);
+    const ts = nts(p.timestamp);
     const existing = map.get(ts) ?? { ts };
-    const isHindcast = actualTsSet.has(ts) || ts <= lastActualTs;
-
-    if (isHindcast) {
-      map.set(ts, { ...existing, hindcast: Number(p.price_eur_mwh) });
-    } else {
-      const p10 = p.price_lower_eur_mwh != null ? Number(p.price_lower_eur_mwh) : undefined;
-      const p90 = p.price_upper_eur_mwh != null ? Number(p.price_upper_eur_mwh) : undefined;
-      map.set(ts, {
-        ...existing,
-        forecast: Number(p.price_eur_mwh),
-        p10, p90,
-        band: p10 != null && p90 != null ? [p10, p90] : undefined,
-      });
-    }
+    const p10 = p.price_lower_eur_mwh != null ? Number(p.price_lower_eur_mwh) : undefined;
+    const p90 = p.price_upper_eur_mwh != null ? Number(p.price_upper_eur_mwh) : undefined;
+    map.set(ts, {
+      ...existing,
+      forecast: Number(p.price_eur_mwh),
+      p10, p90,
+      band: p10 != null && p90 != null ? [p10, p90] : undefined,
+    });
   }
 
   const rawSorted = Array.from(map.values()).sort((a, b) => a.ts.localeCompare(b.ts));
@@ -141,6 +145,9 @@ export default function PriceChart({ actuals, forecasts, mae, startTs, endTs }: 
   const hasConfidence = data.some(r => r.band != null);
 
   const gaps = collectGaps(data, "ts");
+
+  // "now" line = last hindcast ts (= anchor date, e.g. Mar 5)
+  const nowLine = lastHindcastTs ?? new Date().toISOString();
 
   const badge: React.CSSProperties = {
     background: "rgba(0,0,0,0.04)",
@@ -178,7 +185,7 @@ export default function PriceChart({ actuals, forecasts, mae, startTs, endTs }: 
           <Tooltip content={<PriceTooltip />} />
           <Legend wrapperStyle={{ fontSize: 12, color: "#6e6e73" }} />
           <ReferenceLine
-            x={lastActualTs}
+            x={nowLine}
             stroke="rgba(0,0,0,0.2)"
             strokeDasharray="4 3"
             label={{ value: "now", fill: "#aeaeb2", fontSize: 10 }}

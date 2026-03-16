@@ -183,14 +183,14 @@ export default function DashboardPage({ startDate, endDate }: Props) {
     return Math.abs(diff) < 1 ? "flat" : diff > 0 ? "up" : "down";
   }, [latestPrice, prices, ref.now]);
 
-  // ── Price MAE: hindcast rows (past, is_forecast=true) vs actuals ──────────
+  // ── Price MAE: hindcast rows vs actuals ───────────────────────────────────
   const priceAccWindow = useMemo(
-    () => accuracyWindow(prices?.actuals ?? [], prices?.forecasts ?? [], ref.nowIso),
+    () => accuracyWindow(prices?.actuals ?? [], prices?.hindcasts ?? [], ref.nowIso),
     [prices, ref],
   );
   const pricePastFc = useMemo<PricePoint[]>(
     () =>
-      prices?.forecasts.filter(
+      prices?.hindcasts.filter(
         (p) => p.timestamp <= priceAccWindow.end && p.timestamp >= priceAccWindow.start,
       ) ?? [],
     [prices, priceAccWindow],
@@ -207,14 +207,14 @@ export default function DashboardPage({ startDate, endDate }: Props) {
     [priceAccActuals, pricePastFc],
   );
 
-  // ── Load MAE: hindcast rows (past, is_forecast=true) vs actuals ───────────
+  // ── Load MAE: hindcast rows vs actuals ────────────────────────────────────
   const loadAccWindow = useMemo(
-    () => accuracyWindow(load?.actuals ?? [], load?.forecasts ?? [], ref.nowIso),
+    () => accuracyWindow(load?.actuals ?? [], load?.hindcasts ?? [], ref.nowIso),
     [load, ref],
   );
   const loadPastFc = useMemo(
     () =>
-      load?.forecasts.filter(
+      load?.hindcasts.filter(
         (p) => p.timestamp <= loadAccWindow.end && p.timestamp >= loadAccWindow.start,
       ) ?? [],
     [load, loadAccWindow],
@@ -292,14 +292,14 @@ export default function DashboardPage({ startDate, endDate }: Props) {
       <Section title="Electricity Prices" sub={`${startDate.toLocaleDateString()} → ${endDate.toLocaleDateString()} · ${zone}`}>
         {pSt === "loading" && <Empty text="Loading…" />}
         {pSt === "error" && <Empty text="Failed to load price data." />}
-        {prices && <PriceChart actuals={prices.actuals} forecasts={prices.forecasts} mae={priceMAE} startTs={startIso} endTs={endIso} />}
+        {prices && <PriceChart actuals={prices.actuals} hindcasts={prices.hindcasts} forecasts={prices.forecasts} mae={priceMAE} startTs={startIso} endTs={endIso} />}
       </Section>
 
       {/* Load: actuals + forecast */}
       <Section title="Energy Load" sub={`${startDate.toLocaleDateString()} → ${endDate.toLocaleDateString()} · ${zone}`}>
         {lSt === "loading" && <Empty text="Loading…" />}
         {lSt === "error" && <Empty text="Failed to load load data." />}
-        {load && <LoadChart actuals={load.actuals} forecasts={load.forecasts} mae={loadMAE} startTs={startIso} endTs={endIso} />}
+        {load && <LoadChart actuals={load.actuals} hindcasts={load.hindcasts} forecasts={load.forecasts} mae={loadMAE} startTs={startIso} endTs={endIso} />}
       </Section>
 
       {/* Generation mix */}

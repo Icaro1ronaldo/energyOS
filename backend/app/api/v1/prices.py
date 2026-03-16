@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from ...core.database import get_async_db
 from ...models.energy_price import EnergyPrice
+from ...models.energy_load import EnergyLoad
 from ...schemas.price import PricePoint, PriceResponse
 
 router = APIRouter()
@@ -33,11 +34,19 @@ async def get_prices(
         .order_by(EnergyPrice.timestamp)
     )
 
-    # Forecasts: return ALL rows — the ML writer deletes and rewrites them
-    # every run, so the set is bounded (~7*24 hindcast + 48h forward ≈ 216 rows).
-    # NOT filtering by date range here because the forecast window is anchored
-    # at the last actual data point, which may be older than the user's view.
-    forecasts_result = await db.execute(
+    # Anchor timestamp = load last-actual for this zone.
+    # The ML worker anchors both hindcast and forward forecast at this date,
+    # so we split price forecast rows at the same boundary.
+    anchor_result = await db.execute(
+        select(func.max(EnergyLoad.timestamp)).where(
+            EnergyLoad.bidding_zone == zone,
+            ~EnergyLoad.is_forecast,
+        )
+    )
+    anchor_ts = anchor_result.scalar()
+
+    # All price forecast rows (bounded set: ~7d hindcast + 48h forward ≈ 864 rows)
+    all_fc_result = await db.execute(
         select(EnergyPrice)
         .where(
             EnergyPrice.bidding_zone == zone,
@@ -45,9 +54,18 @@ async def get_prices(
         )
         .order_by(EnergyPrice.timestamp)
     )
+    all_fc = all_fc_result.scalars().all()
+
+    if anchor_ts is None:
+        hindcasts_rows = all_fc
+        forecasts_rows: list = []
+    else:
+        hindcasts_rows = [r for r in all_fc if r.timestamp <= anchor_ts]
+        forecasts_rows = [r for r in all_fc if r.timestamp > anchor_ts]
 
     return PriceResponse(
         zone=zone,
         actuals=[PricePoint.model_validate(r) for r in actuals_result.scalars().all()],
-        forecasts=[PricePoint.model_validate(r) for r in forecasts_result.scalars().all()],
+        hindcasts=[PricePoint.model_validate(r) for r in hindcasts_rows],
+        forecasts=[PricePoint.model_validate(r) for r in forecasts_rows],
     )
