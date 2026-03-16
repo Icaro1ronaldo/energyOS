@@ -61,11 +61,13 @@ def train(df: pd.DataFrame) -> LGBMForecast:
     m50 = lgb.train(_lgb_params(0.5), dataset)
     m90 = lgb.train(_lgb_params(0.9), dataset)
 
+    # Need 168 rows for lag_168 + 168 rows for the hindcast window itself
+    # → keep 400 rows so generate_hindcast always yields a full 7-day window.
     return LGBMForecast(
         model_p10=m10,
         model_p50=m50,
         model_p90=m90,
-        last_known=df.tail(200).reset_index(drop=True),
+        last_known=df.tail(400).reset_index(drop=True),
     )
 
 

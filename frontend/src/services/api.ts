@@ -60,4 +60,6 @@ export const energyApi = {
       .then((r) => r.data),
 
   health: () => api.get("/health").then((r) => r.data),
+
+  runForecast: () => api.post("/api/v1/forecast/run").then((r) => r.data),
 };
