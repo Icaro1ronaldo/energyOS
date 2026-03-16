@@ -71,14 +71,15 @@ def train(df: pd.DataFrame) -> LGBMForecast:
     )
 
 
-def generate_hindcast(model: LGBMForecast, n_days: int = 7) -> pd.DataFrame:
+def generate_hindcast(model: LGBMForecast, n_days: int = 7, anchor_ts=None) -> pd.DataFrame:
     """
     Generate in-sample predictions for the last n_days of known data using
-    actual lag values (non-recursive, vectorised).  These are stored as
-    forecast rows so the chart can overlay model fit against actuals.
+    actual lag values (non-recursive, vectorised).
 
-    Uses a calendar-based cutoff (not a fixed row count) so the window is
-    always n_days long regardless of data resolution (15-min, hourly, …).
+    anchor_ts: if provided, treat this timestamp as the end of the hindcast
+               window instead of the last row of last_known. Used to align
+               the price hindcast end-date with the load last-actual so both
+               charts cover exactly the same 7-day period.
 
     Returns:
         DataFrame with columns: ds, yhat, yhat_lower, yhat_upper.
@@ -86,6 +87,15 @@ def generate_hindcast(model: LGBMForecast, n_days: int = 7) -> pd.DataFrame:
     feat = _build_features(model.last_known)
     if feat.empty:
         return pd.DataFrame(columns=["ds", "yhat", "yhat_lower", "yhat_upper"])
+
+    if anchor_ts is not None:
+        ts = pd.Timestamp(anchor_ts)
+        if feat["ds"].dt.tz is None:
+            ts = ts.tz_convert(None) if ts.tzinfo else ts
+        feat = feat[feat["ds"] <= ts]
+        if feat.empty:
+            return pd.DataFrame(columns=["ds", "yhat", "yhat_lower", "yhat_upper"])
+
     last_ds = feat["ds"].iloc[-1]
     tail = feat[feat["ds"] > last_ds - pd.Timedelta(days=n_days)]
     if tail.empty:

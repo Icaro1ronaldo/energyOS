@@ -1,5 +1,4 @@
 import uuid
-import datetime
 import pandas as pd
 from .celery_app import app
 from ..core.config import settings
@@ -24,24 +23,6 @@ def _last_actual_ts(model_class, zone: str):
     return row[0] if row else None
 
 
-def _price_hindcast_days(zone: str) -> int:
-    """
-    Compute how many hindcast days to generate for prices so the window
-    always covers 7 days before the load last-actual date.
-
-    Example: price ends Mar 16, load ends Mar 5 → gap = 11 days.
-    Return 7 + 11 = 18 so the price hindcast starts Feb 26 — the same
-    start date as the 7-day load hindcast.  Both charts align at Mar 5.
-    """
-    price_ts = _last_actual_ts(EnergyPrice, zone)
-    load_ts  = _last_actual_ts(EnergyLoad, zone)
-    if price_ts is None or load_ts is None:
-        return 7
-    # Make timezone-naive for subtraction if needed
-    def _naive(ts):
-        return ts.replace(tzinfo=None) if isinstance(ts, datetime.datetime) and ts.tzinfo else ts
-    gap_days = max(0, (_naive(price_ts) - _naive(load_ts)).days)
-    return 7 + gap_days
 
 
 @app.task(name="app.workers.ml_forecast.run_all_forecasts")
@@ -180,11 +161,10 @@ def _forecast_prices(zone: str):
         return
     model = train(df)
     _try_persist_model("prices", zone, model, f"models/prices/{zone}/{uuid.uuid4()}.pkl")
-    n_days   = _price_hindcast_days(zone)
-    hindcast = generate_hindcast(model, n_days=n_days)
-    # Anchor the forward forecast at the load last-actual so both charts
-    # show the forecast window starting from the same date (e.g. Mar 5).
+    # Anchor both hindcast and forward forecast at the load last-actual so
+    # prices and loads show the same 7-day predicted window and 48h forecast.
     load_ts  = _last_actual_ts(EnergyLoad, zone)
+    hindcast = generate_hindcast(model, n_days=7, anchor_ts=load_ts)
     forward  = generate_forecast(model, settings.forecast_horizon_hours, anchor_ts=load_ts)
     _write_price_forecasts(zone, pd.concat([hindcast, forward], ignore_index=True))
 
