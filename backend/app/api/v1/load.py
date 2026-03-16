@@ -21,19 +21,32 @@ async def get_load(
     if start is None:
         start = end - timedelta(days=7)
 
-    result = await db.execute(
+    # Actuals: filter by the requested window
+    actuals_result = await db.execute(
         select(EnergyLoad)
         .where(
             EnergyLoad.bidding_zone == zone,
+            ~EnergyLoad.is_forecast,
             EnergyLoad.timestamp >= start,
             EnergyLoad.timestamp <= end,
         )
         .order_by(EnergyLoad.timestamp)
     )
-    rows = result.scalars().all()
+
+    # Forecasts: return ALL rows — not filtered by date because the ML writer
+    # anchors the forecast window at the last actual, which may be older than
+    # the user's selected view range.
+    forecasts_result = await db.execute(
+        select(EnergyLoad)
+        .where(
+            EnergyLoad.bidding_zone == zone,
+            EnergyLoad.is_forecast,
+        )
+        .order_by(EnergyLoad.timestamp)
+    )
 
     return LoadResponse(
         zone=zone,
-        actuals=[LoadPoint.model_validate(r) for r in rows if not r.is_forecast],
-        forecasts=[LoadPoint.model_validate(r) for r in rows if r.is_forecast],
+        actuals=[LoadPoint.model_validate(r) for r in actuals_result.scalars().all()],
+        forecasts=[LoadPoint.model_validate(r) for r in forecasts_result.scalars().all()],
     )

@@ -21,19 +21,33 @@ async def get_prices(
     if start is None:
         start = end - timedelta(days=7)
 
-    result = await db.execute(
+    # Actuals: filter by the requested window
+    actuals_result = await db.execute(
         select(EnergyPrice)
         .where(
             EnergyPrice.bidding_zone == zone,
+            ~EnergyPrice.is_forecast,
             EnergyPrice.timestamp >= start,
             EnergyPrice.timestamp <= end,
         )
         .order_by(EnergyPrice.timestamp)
     )
-    rows = result.scalars().all()
+
+    # Forecasts: return ALL rows — the ML writer deletes and rewrites them
+    # every run, so the set is bounded (~7*24 hindcast + 48h forward ≈ 216 rows).
+    # NOT filtering by date range here because the forecast window is anchored
+    # at the last actual data point, which may be older than the user's view.
+    forecasts_result = await db.execute(
+        select(EnergyPrice)
+        .where(
+            EnergyPrice.bidding_zone == zone,
+            EnergyPrice.is_forecast,
+        )
+        .order_by(EnergyPrice.timestamp)
+    )
 
     return PriceResponse(
         zone=zone,
-        actuals=[PricePoint.model_validate(r) for r in rows if not r.is_forecast],
-        forecasts=[PricePoint.model_validate(r) for r in rows if r.is_forecast],
+        actuals=[PricePoint.model_validate(r) for r in actuals_result.scalars().all()],
+        forecasts=[PricePoint.model_validate(r) for r in forecasts_result.scalars().all()],
     )
