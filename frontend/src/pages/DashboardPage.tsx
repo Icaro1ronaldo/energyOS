@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { addHours, subHours } from "date-fns";
+import { addHours, subHours, subDays } from "date-fns";
 import { usePrices, useLoad, useProduction } from "../hooks/useEnergyData";
 import KpiCard from "../components/KpiCard";
 import PriceChart from "../components/charts/PriceChart";
@@ -147,8 +147,21 @@ export default function DashboardPage({ startDate, endDate }: Props) {
   const startIso = startDate.toISOString();
   const endIso = addHours(endDate, 24).toISOString();
 
-  const { data: prices, status: pSt } = usePrices(zone, startIso, endIso);
-  const { data: load, status: lSt } = useLoad(zone, startIso, endIso);
+  // Fetch actuals using at least a 14-day window ending now, so the last
+  // real data point is always included even when the user's date picker
+  // starts after the most recent actual (e.g. data ends Mar 5, default
+  // picker starts Mar 9).  The API already returns ALL forecast rows
+  // unconditionally, so this only widens the actuals window.
+  const fetchStartIso = useMemo(
+    () => {
+      const floor = subDays(nowRef, 14).toISOString();
+      return startIso < floor ? startIso : floor;
+    },
+    [startIso, nowRef],
+  );
+
+  const { data: prices, status: pSt } = usePrices(zone, fetchStartIso, endIso);
+  const { data: load, status: lSt } = useLoad(zone, fetchStartIso, endIso);
   const { data: production, status: prodSt } = useProduction(zone, startIso, endIso);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────

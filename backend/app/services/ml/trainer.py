@@ -61,13 +61,13 @@ def train(df: pd.DataFrame) -> LGBMForecast:
     m50 = lgb.train(_lgb_params(0.5), dataset)
     m90 = lgb.train(_lgb_params(0.9), dataset)
 
-    # Need 168 rows for lag_168 + 168 rows for the hindcast window itself
-    # → keep 400 rows so generate_hindcast always yields a full 7-day window.
+    # For 15-min data a 7-day hindcast needs 7×24×4=672 rows PLUS 168 rows
+    # of lookback for lag_168.  Keep 1200 rows to cover both resolutions.
     return LGBMForecast(
         model_p10=m10,
         model_p50=m50,
         model_p90=m90,
-        last_known=df.tail(400).reset_index(drop=True),
+        last_known=df.tail(1200).reset_index(drop=True),
     )
 
 
@@ -77,11 +77,17 @@ def generate_hindcast(model: LGBMForecast, n_days: int = 7) -> pd.DataFrame:
     actual lag values (non-recursive, vectorised).  These are stored as
     forecast rows so the chart can overlay model fit against actuals.
 
+    Uses a calendar-based cutoff (not a fixed row count) so the window is
+    always n_days long regardless of data resolution (15-min, hourly, …).
+
     Returns:
         DataFrame with columns: ds, yhat, yhat_lower, yhat_upper.
     """
     feat = _build_features(model.last_known)
-    tail = feat.tail(n_days * 24)
+    if feat.empty:
+        return pd.DataFrame(columns=["ds", "yhat", "yhat_lower", "yhat_upper"])
+    last_ds = feat["ds"].iloc[-1]
+    tail = feat[feat["ds"] > last_ds - pd.Timedelta(days=n_days)]
     if tail.empty:
         return pd.DataFrame(columns=["ds", "yhat", "yhat_lower", "yhat_upper"])
 
